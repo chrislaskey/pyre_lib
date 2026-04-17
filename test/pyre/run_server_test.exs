@@ -1,6 +1,8 @@
 defmodule Pyre.RunServerTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   defmodule AgentMock do
     use Pyre.LLM
 

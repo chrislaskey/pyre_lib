@@ -1,6 +1,8 @@
 defmodule Pyre.Flows.OvernightFeatureTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Flows.OvernightFeature
 
   setup do

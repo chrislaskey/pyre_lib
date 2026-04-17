@@ -1,6 +1,8 @@
 defmodule Pyre.Actions.ProductManagerTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Actions.ProductManager
   alias Pyre.Plugins.Artifact
 

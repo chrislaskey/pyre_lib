@@ -1,6 +1,8 @@
 defmodule Pyre.Flows.CodeReviewTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Flows.CodeReview
 
   setup do

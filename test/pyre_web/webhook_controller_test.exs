@@ -1,6 +1,8 @@
 defmodule PyreWeb.WebhookControllerTest do
   use PyreWeb.Test.ConnCase, async: false
 
+  @moduletag :capture_log
+
   @webhook_secret "test_webhook_secret_123"
 
   setup do

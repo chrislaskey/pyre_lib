@@ -1,6 +1,8 @@
 defmodule Pyre.Flows.FeatureTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Flows.Feature
 
   setup do

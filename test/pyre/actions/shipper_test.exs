@@ -1,6 +1,8 @@
 defmodule Pyre.Actions.ShipperTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Actions.Shipper
   alias Pyre.Plugins.Artifact
 

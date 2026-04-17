@@ -1,6 +1,8 @@
 defmodule Pyre.LLM.ClaudeCLITest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.LLM.ClaudeCLI
 
   describe "manages_tool_loop?/0" do

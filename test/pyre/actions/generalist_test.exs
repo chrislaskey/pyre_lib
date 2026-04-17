@@ -1,6 +1,8 @@
 defmodule Pyre.Actions.GeneralistTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Actions.Generalist
   alias Pyre.Plugins.Artifact
 

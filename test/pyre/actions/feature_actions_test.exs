@@ -1,6 +1,8 @@
 defmodule Pyre.Actions.SoftwareArchitectTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Actions.SoftwareArchitect
   alias Pyre.Plugins.Artifact
 

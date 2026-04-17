@@ -1,6 +1,8 @@
 defmodule Pyre.Flows.TaskTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Flows.Task
 
   setup do

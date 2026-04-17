@@ -1,6 +1,8 @@
 defmodule Pyre.Flows.ChatTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Flows.Chat
 
   setup do

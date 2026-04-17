@@ -1,6 +1,8 @@
 defmodule Pyre.Tools.AgenticLoopTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Tools.AgenticLoop
 
   # -- Helpers for building mock responses --

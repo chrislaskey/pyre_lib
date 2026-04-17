@@ -1,6 +1,8 @@
 defmodule Pyre.Flows.PrototypeTest do
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   alias Pyre.Flows.Prototype
 
   setup do
