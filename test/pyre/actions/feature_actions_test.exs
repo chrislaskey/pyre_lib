@@ -1,10 +1,12 @@
 defmodule Pyre.Actions.SoftwareArchitectTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.SoftwareArchitect
   alias Pyre.Plugins.Artifact
+
+  @moduletag :capture_log
 
   setup do
     tmp_dir = Path.join(System.tmp_dir!(), "pyre_sa_test_#{System.unique_integer([:positive])}")
@@ -15,29 +17,33 @@ defmodule Pyre.Actions.SoftwareArchitectTest do
   end
 
   test "generates architecture plan and writes artifact", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "# Architecture Plan\n\n## Phase 1\n\nSetup schema.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Architecture Plan\n\n## Phase 1\n\nSetup schema.")
 
-    params = %{
-      feature_description: "Build a products page",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = SoftwareArchitect.run(params, context)
-    assert result.architecture_plan =~ "Architecture Plan"
-    assert {:ok, content} = Artifact.read(run_dir, "03_architecture_plan")
-    assert content =~ "Architecture Plan"
+      assert {:ok, result} = SoftwareArchitect.run(params, context)
+      assert result.architecture_plan =~ "Architecture Plan"
+      assert {:ok, content} = Artifact.read(run_dir, "03_architecture_plan")
+      assert content =~ "Architecture Plan"
+    end)
   end
 end
 
 defmodule Pyre.Actions.PRSetupTest do
   use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.PRSetup
   alias Pyre.Plugins.Artifact
@@ -51,59 +57,65 @@ defmodule Pyre.Actions.PRSetupTest do
   end
 
   test "dry run writes artifact and returns branch name", %{run_dir: run_dir} do
-    Process.put(
-      :mock_llm_response,
-      "## Branch Name\n\nfeature/products-page\n\n## PR Title\n\nAdd products page\n\n## PR Body\n\nImplements products page."
-    )
+    capture_io(fn ->
+      Process.put(
+        :mock_llm_response,
+        "## Branch Name\n\nfeature/products-page\n\n## PR Title\n\nAdd products page\n\n## PR Body\n\nImplements products page."
+      )
 
-    params = %{
-      feature_description: "Build a products page",
-      architecture_plan: "Architecture plan",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        architecture_plan: "Architecture plan",
+        run_dir: run_dir
+      }
 
-    context = %{llm: Pyre.LLM.Mock, streaming: false, dry_run: true}
+      context = %{llm: Pyre.LLM.Mock, streaming: false, dry_run: true}
 
-    assert {:ok, result} = PRSetup.run(params, context)
-    assert result.branch_name == "feature/products-page"
-    assert result.pr_setup =~ "Branch Name"
-    assert {:ok, _content} = Artifact.read(run_dir, "04_pr_setup")
+      assert {:ok, result} = PRSetup.run(params, context)
+      assert result.branch_name == "feature/products-page"
+      assert result.pr_setup =~ "Branch Name"
+      assert {:ok, _content} = Artifact.read(run_dir, "04_pr_setup")
+    end)
   end
 
   test "non-git-repo skips git operations", %{run_dir: run_dir} do
-    Process.put(
-      :mock_llm_response,
-      "## Branch Name\n\nfeature/change\n\n## PR Title\n\nChange\n\n## PR Body\n\nChange."
-    )
+    capture_io(fn ->
+      Process.put(
+        :mock_llm_response,
+        "## Branch Name\n\nfeature/change\n\n## PR Title\n\nChange\n\n## PR Body\n\nChange."
+      )
 
-    # Use a temp dir that is definitely not a git repo
-    non_git_dir =
-      Path.join(System.tmp_dir!(), "pyre_ps_nogit_#{System.unique_integer([:positive])}")
+      # Use a temp dir that is definitely not a git repo
+      non_git_dir =
+        Path.join(System.tmp_dir!(), "pyre_ps_nogit_#{System.unique_integer([:positive])}")
 
-    File.mkdir_p!(non_git_dir)
+      File.mkdir_p!(non_git_dir)
 
-    params = %{
-      feature_description: "Build something",
-      architecture_plan: "Architecture plan",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build something",
+        architecture_plan: "Architecture plan",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: non_git_dir,
-      log_fn: fn _ -> :ok end
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: non_git_dir,
+        log_fn: fn _ -> :ok end
+      }
 
-    assert {:ok, result} = PRSetup.run(params, context)
-    assert result.branch_name == "feature/change"
+      assert {:ok, result} = PRSetup.run(params, context)
+      assert result.branch_name == "feature/change"
 
-    File.rm_rf!(non_git_dir)
+      File.rm_rf!(non_git_dir)
+    end)
   end
 end
 
 defmodule Pyre.Actions.SoftwareEngineerTest do
   use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.SoftwareEngineer
   alias Pyre.Plugins.Artifact
@@ -120,31 +132,35 @@ defmodule Pyre.Actions.SoftwareEngineerTest do
     run_dir: run_dir,
     tmp_dir: tmp_dir
   } do
-    Process.put(:mock_llm_response, "# Implementation Summary\n\nAll phases implemented.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Implementation Summary\n\nAll phases implemented.")
 
-    params = %{
-      feature_description: "Build a products page",
-      architecture_plan: "Architecture plan",
-      pr_setup: "PR setup summary",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        architecture_plan: "Architecture plan",
+        pr_setup: "PR setup summary",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = SoftwareEngineer.run(params, context)
-    assert result.implementation_summary =~ "Implementation Summary"
-    assert {:ok, content} = Artifact.read(run_dir, "06_implementation_summary")
-    assert content =~ "Implementation Summary"
+      assert {:ok, result} = SoftwareEngineer.run(params, context)
+      assert result.implementation_summary =~ "Implementation Summary"
+      assert {:ok, content} = Artifact.read(run_dir, "06_implementation_summary")
+      assert content =~ "Implementation Summary"
+    end)
   end
 end
 
 defmodule Pyre.Actions.PRReviewerTest do
   use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.PRReviewer
   alias Pyre.Plugins.Artifact
@@ -158,48 +174,52 @@ defmodule Pyre.Actions.PRReviewerTest do
   end
 
   test "approves and writes review artifact", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "APPROVE\n\nGreat work!")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "APPROVE\n\nGreat work!")
 
-    params = %{
-      feature_description: "Build a products page",
-      architecture_plan: "Architecture plan",
-      implementation_summary: "Implementation summary",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        architecture_plan: "Architecture plan",
+        implementation_summary: "Implementation summary",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      log_fn: fn _ -> :ok end,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        log_fn: fn _ -> :ok end,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = PRReviewer.run(params, context)
-    assert result.verdict == :approve
-    assert result.review =~ "APPROVE"
-    assert {:ok, _content} = Artifact.read(run_dir, "07_pr_review")
+      assert {:ok, result} = PRReviewer.run(params, context)
+      assert result.verdict == :approve
+      assert result.review =~ "APPROVE"
+      assert {:ok, _content} = Artifact.read(run_dir, "07_pr_review")
+    end)
   end
 
   test "rejects when verdict is not APPROVE", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "REJECT\n\nNeeds more test coverage.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "REJECT\n\nNeeds more test coverage.")
 
-    params = %{
-      feature_description: "Build a products page",
-      architecture_plan: "Architecture plan",
-      implementation_summary: "Implementation summary",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        architecture_plan: "Architecture plan",
+        implementation_summary: "Implementation summary",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      log_fn: fn _ -> :ok end,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        log_fn: fn _ -> :ok end,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = PRReviewer.run(params, context)
-    assert result.verdict == :reject
+      assert {:ok, result} = PRReviewer.run(params, context)
+      assert result.verdict == :reject
+    end)
   end
 end

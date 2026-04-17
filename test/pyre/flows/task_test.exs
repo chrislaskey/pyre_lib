@@ -1,9 +1,11 @@
 defmodule Pyre.Flows.TaskTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Flows.Task
+
+  @moduletag :capture_log
 
   setup do
     tmp_dir = Path.join(System.tmp_dir!(), "pyre_task_test_#{System.unique_integer([:positive])}")
@@ -25,37 +27,41 @@ defmodule Pyre.Flows.TaskTest do
   end
 
   test "runs to completion with single mock response", %{tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_responses, [
-      "# Summary\n\nTask completed successfully."
-    ])
+    capture_io(fn ->
+      Process.put(:mock_llm_responses, [
+        "# Summary\n\nTask completed successfully."
+      ])
 
-    result =
-      with_cwd(tmp_dir, fn ->
-        Task.run("Add pagination to the products page",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          project_dir: tmp_dir
-        )
-      end)
+      result =
+        with_cwd(tmp_dir, fn ->
+          Task.run("Add pagination to the products page",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
-    assert state.generalist_output =~ "Summary"
+      assert {:ok, state} = result
+      assert state.phase == :complete
+      assert state.generalist_output =~ "Summary"
+    end)
   end
 
   test "dry run skips LLM calls", %{tmp_dir: tmp_dir} do
-    result =
-      with_cwd(tmp_dir, fn ->
-        Task.run("Add pagination",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          dry_run: true,
-          project_dir: tmp_dir
-        )
-      end)
+    capture_io(fn ->
+      result =
+        with_cwd(tmp_dir, fn ->
+          Task.run("Add pagination",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            dry_run: true,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
+      assert {:ok, state} = result
+      assert state.phase == :complete
+    end)
   end
 
   test "propagates error from a failing LLM", %{tmp_dir: tmp_dir} do
@@ -85,25 +91,27 @@ defmodule Pyre.Flows.TaskTest do
   end
 
   test "log_fn receives stage messages", %{tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_responses, [
-      "Task completed."
-    ])
+    capture_io(fn ->
+      Process.put(:mock_llm_responses, [
+        "Task completed."
+      ])
 
-    logs = Agent.start_link(fn -> [] end) |> elem(1)
+      logs = Agent.start_link(fn -> [] end) |> elem(1)
 
-    with_cwd(tmp_dir, fn ->
-      Task.run("Add pagination",
-        llm: Pyre.LLM.Mock,
-        streaming: false,
-        project_dir: tmp_dir,
-        log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
-      )
+      with_cwd(tmp_dir, fn ->
+        Task.run("Add pagination",
+          llm: Pyre.LLM.Mock,
+          streaming: false,
+          project_dir: tmp_dir,
+          log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
+        )
+      end)
+
+      log_messages = Agent.get(logs, & &1)
+      assert Enum.any?(log_messages, &(&1 =~ "Run directory:"))
+      assert Enum.any?(log_messages, &(&1 =~ "Stage: generalist"))
+
+      Agent.stop(logs)
     end)
-
-    log_messages = Agent.get(logs, & &1)
-    assert Enum.any?(log_messages, &(&1 =~ "Run directory:"))
-    assert Enum.any?(log_messages, &(&1 =~ "Stage: generalist"))
-
-    Agent.stop(logs)
   end
 end

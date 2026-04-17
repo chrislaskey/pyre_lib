@@ -1,10 +1,12 @@
 defmodule Pyre.Actions.GeneralistTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.Generalist
   alias Pyre.Plugins.Artifact
+
+  @moduletag :capture_log
 
   setup do
     tmp_dir = Path.join(System.tmp_dir!(), "pyre_gen_test_#{System.unique_integer([:positive])}")
@@ -15,21 +17,23 @@ defmodule Pyre.Actions.GeneralistTest do
   end
 
   test "generates output and writes artifact", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "# Summary\n\nHere's what I did.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Summary\n\nHere's what I did.")
 
-    params = %{feature_description: "Help me debug this issue", run_dir: run_dir}
+      params = %{feature_description: "Help me debug this issue", run_dir: run_dir}
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = Generalist.run(params, context)
-    assert result.generalist_output =~ "Summary"
-    assert {:ok, content} = Artifact.read(run_dir, "01_generalist_output")
-    assert content =~ "Summary"
+      assert {:ok, result} = Generalist.run(params, context)
+      assert result.generalist_output =~ "Summary"
+      assert {:ok, content} = Artifact.read(run_dir, "01_generalist_output")
+      assert content =~ "Summary"
+    end)
   end
 
   test "returns error when LLM fails", %{run_dir: run_dir, tmp_dir: tmp_dir} do

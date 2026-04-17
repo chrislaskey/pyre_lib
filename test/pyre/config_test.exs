@@ -1,10 +1,10 @@
 defmodule Pyre.ConfigTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
-
   alias Pyre.Config
   alias Pyre.Events.FlowStarted
+
+  @moduletag :capture_log
 
   defmodule TrackingConfig do
     use Pyre.Config

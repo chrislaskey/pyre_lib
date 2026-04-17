@@ -1,9 +1,11 @@
 defmodule Pyre.LLM.ClaudeCLITest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.LLM.ClaudeCLI
+
+  @moduletag :capture_log
 
   describe "manages_tool_loop?/0" do
     test "returns true" do
@@ -209,29 +211,31 @@ defmodule Pyre.LLM.ClaudeCLITest do
     end
 
     test "call_llm routes to AgenticLoop when backend does NOT manage tool loop" do
-      # Pyre.LLM.Mock does not implement manages_tool_loop?/0
-      # With tools, it should go through AgenticLoop which calls chat/4
-      Process.put(:mock_llm_response, "final answer")
+      capture_io(fn ->
+        # Pyre.LLM.Mock does not implement manages_tool_loop?/0
+        # With tools, it should go through AgenticLoop which calls chat/4
+        Process.put(:mock_llm_response, "final answer")
 
-      context = %{
-        llm: Pyre.LLM.Mock,
-        streaming: false,
-        log_fn: fn _ -> :ok end
-      }
-
-      # The mock's chat/4 returns a ReqLLM.Response with finish_reason: :stop,
-      # which AgenticLoop classifies as :final_answer
-      tools = [
-        %ReqLLM.Tool{
-          name: "test_tool",
-          description: "test",
-          parameter_schema: [],
-          callback: fn _ -> {:ok, "ok"} end
+        context = %{
+          llm: Pyre.LLM.Mock,
+          streaming: false,
+          log_fn: fn _ -> :ok end
         }
-      ]
 
-      assert {:ok, "final answer"} =
-               Pyre.Actions.Helpers.call_llm(context, "model", [], tools: tools)
+        # The mock's chat/4 returns a ReqLLM.Response with finish_reason: :stop,
+        # which AgenticLoop classifies as :final_answer
+        tools = [
+          %ReqLLM.Tool{
+            name: "test_tool",
+            description: "test",
+            parameter_schema: [],
+            callback: fn _ -> {:ok, "ok"} end
+          }
+        ]
+
+        assert {:ok, "final answer"} =
+                 Pyre.Actions.Helpers.call_llm(context, "model", [], tools: tools)
+      end)
     end
   end
 end

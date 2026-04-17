@@ -1,10 +1,12 @@
 defmodule Pyre.Actions.ShipperTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.Shipper
   alias Pyre.Plugins.Artifact
+
+  @moduletag :capture_log
 
   @llm_response """
   ## Branch Name
@@ -51,42 +53,46 @@ defmodule Pyre.Actions.ShipperTest do
 
   describe "run/2 in dry_run mode" do
     test "generates shipping plan and writes artifact", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-      Process.put(:mock_llm_response, @llm_response)
+      capture_io(fn ->
+        Process.put(:mock_llm_response, @llm_response)
 
-      params = base_params(run_dir)
+        params = base_params(run_dir)
 
-      context = %{
-        llm: Pyre.LLM.Mock,
-        streaming: false,
-        dry_run: true,
-        working_dir: tmp_dir,
-        allowed_paths: [tmp_dir]
-      }
+        context = %{
+          llm: Pyre.LLM.Mock,
+          streaming: false,
+          dry_run: true,
+          working_dir: tmp_dir,
+          allowed_paths: [tmp_dir]
+        }
 
-      assert {:ok, result} = Shipper.run(params, context)
-      assert result.shipping_summary =~ "Branch Name"
-      assert result.shipping_summary =~ "PR Title"
-      assert {:ok, content} = Artifact.read(run_dir, "06_shipping_summary")
-      assert content =~ "Branch Name"
+        assert {:ok, result} = Shipper.run(params, context)
+        assert result.shipping_summary =~ "Branch Name"
+        assert result.shipping_summary =~ "PR Title"
+        assert {:ok, content} = Artifact.read(run_dir, "06_shipping_summary")
+        assert content =~ "Branch Name"
+      end)
     end
   end
 
   describe "run/2 in non-git directory" do
     test "skips git operations and writes artifact", %{run_dir: run_dir} do
-      Process.put(:mock_llm_response, @llm_response)
+      capture_io(fn ->
+        Process.put(:mock_llm_response, @llm_response)
 
-      params = base_params(run_dir)
+        params = base_params(run_dir)
 
-      context = %{
-        llm: Pyre.LLM.Mock,
-        streaming: false,
-        working_dir: run_dir,
-        allowed_paths: [run_dir],
-        log_fn: &Function.identity/1
-      }
+        context = %{
+          llm: Pyre.LLM.Mock,
+          streaming: false,
+          working_dir: run_dir,
+          allowed_paths: [run_dir],
+          log_fn: &Function.identity/1
+        }
 
-      assert {:ok, result} = Shipper.run(params, context)
-      assert result.shipping_summary =~ "Branch Name"
+        assert {:ok, result} = Shipper.run(params, context)
+        assert result.shipping_summary =~ "Branch Name"
+      end)
     end
   end
 
@@ -116,29 +122,31 @@ defmodule Pyre.Actions.ShipperTest do
 
   describe "run/2 with missing GitHub config" do
     test "returns friendly error when GitHub is not configured", %{run_dir: run_dir} do
-      Process.put(:mock_llm_response, @llm_response)
+      capture_io(fn ->
+        Process.put(:mock_llm_response, @llm_response)
 
-      # Create a temporary git repo so we reach the config check
-      git_dir =
-        Path.join(System.tmp_dir!(), "pyre_git_test_#{System.unique_integer([:positive])}")
+        # Create a temporary git repo so we reach the config check
+        git_dir =
+          Path.join(System.tmp_dir!(), "pyre_git_test_#{System.unique_integer([:positive])}")
 
-      File.mkdir_p!(git_dir)
-      System.cmd("git", ["init"], cd: git_dir)
-      on_exit(fn -> File.rm_rf!(git_dir) end)
+        File.mkdir_p!(git_dir)
+        System.cmd("git", ["init"], cd: git_dir)
+        on_exit(fn -> File.rm_rf!(git_dir) end)
 
-      params = base_params(run_dir)
+        params = base_params(run_dir)
 
-      context = %{
-        llm: Pyre.LLM.Mock,
-        streaming: false,
-        working_dir: git_dir,
-        allowed_paths: [git_dir],
-        github: %{},
-        log_fn: &Function.identity/1
-      }
+        context = %{
+          llm: Pyre.LLM.Mock,
+          streaming: false,
+          working_dir: git_dir,
+          allowed_paths: [git_dir],
+          github: %{},
+          log_fn: &Function.identity/1
+        }
 
-      assert {:error, {:github_not_configured, message}} = Shipper.run(params, context)
-      assert message =~ "GitHub is not configured"
+        assert {:error, {:github_not_configured, message}} = Shipper.run(params, context)
+        assert message =~ "GitHub is not configured"
+      end)
     end
   end
 
@@ -147,52 +155,54 @@ defmodule Pyre.Actions.ShipperTest do
       run_dir: run_dir,
       tmp_dir: tmp_dir
     } do
-      defmodule CLIShipperBackend do
-        use Pyre.LLM
+      capture_io(fn ->
+        defmodule CLIShipperBackend do
+          use Pyre.LLM
 
-        def manages_tool_loop?, do: true
+          def manages_tool_loop?, do: true
 
-        def generate(_, _, _ \\ []) do
-          {:ok,
-           """
-           ## Branch Name
+          def generate(_, _, _ \\ []) do
+            {:ok,
+             """
+             ## Branch Name
 
-           feature-cli-test-branch
+             feature-cli-test-branch
 
-           ## Commit Message
+             ## Commit Message
 
-           feat: test cli backend path
+             feat: test cli backend path
 
-           ## PR Title
+             ## PR Title
 
-           Test CLI Backend Path
+             Test CLI Backend Path
 
-           ## PR Body
+             ## PR Body
 
-           Verifies that the CLI backend uses generate instead of chat.
-           """}
+             Verifies that the CLI backend uses generate instead of chat.
+             """}
+          end
+
+          def stream(_, _, _ \\ []), do: generate(nil, nil)
+
+          def chat(_, _, _, _ \\ []) do
+            raise "chat/4 should not be called for shipper with CLI backend"
+          end
         end
 
-        def stream(_, _, _ \\ []), do: generate(nil, nil)
+        params = base_params(run_dir)
 
-        def chat(_, _, _, _ \\ []) do
-          raise "chat/4 should not be called for shipper with CLI backend"
-        end
-      end
+        context = %{
+          llm: CLIShipperBackend,
+          streaming: false,
+          dry_run: true,
+          working_dir: tmp_dir,
+          allowed_paths: [tmp_dir]
+        }
 
-      params = base_params(run_dir)
-
-      context = %{
-        llm: CLIShipperBackend,
-        streaming: false,
-        dry_run: true,
-        working_dir: tmp_dir,
-        allowed_paths: [tmp_dir]
-      }
-
-      assert {:ok, result} = Shipper.run(params, context)
-      assert result.shipping_summary =~ "feature-cli-test-branch"
-      assert result.shipping_summary =~ "Test CLI Backend Path"
+        assert {:ok, result} = Shipper.run(params, context)
+        assert result.shipping_summary =~ "feature-cli-test-branch"
+        assert result.shipping_summary =~ "Test CLI Backend Path"
+      end)
     end
   end
 
@@ -232,20 +242,27 @@ defmodule Pyre.Actions.ShipperTest do
     end
 
     test "uses current git branch when not on main" do
-      git_dir =
-        Path.join(System.tmp_dir!(), "pyre_branch_test_#{System.unique_integer([:positive])}")
+      capture_io(fn ->
+        git_dir =
+          Path.join(System.tmp_dir!(), "pyre_branch_test_#{System.unique_integer([:positive])}")
 
-      File.mkdir_p!(git_dir)
-      System.cmd("git", ["init", "-b", "main"], cd: git_dir)
-      File.write!(Path.join(git_dir, ".gitkeep"), "")
-      System.cmd("git", ["add", "."], cd: git_dir)
-      System.cmd("git", ["commit", "-m", "init", "--no-gpg-sign"], cd: git_dir)
-      System.cmd("git", ["checkout", "-b", "nova-admin-ui"], cd: git_dir)
-      on_exit(fn -> File.rm_rf!(git_dir) end)
+        File.mkdir_p!(git_dir)
+        System.cmd("git", ["init", "-b", "main"], cd: git_dir)
+        File.write!(Path.join(git_dir, ".gitkeep"), "")
+        System.cmd("git", ["add", "."], cd: git_dir)
+        System.cmd("git", ["commit", "-m", "init", "--no-gpg-sign"], cd: git_dir)
 
-      plan = Shipper.parse_shipping_plan("No sections", nil, git_dir)
+        System.cmd("git", ["checkout", "-b", "nova-admin-ui"],
+          cd: git_dir,
+          stderr_to_stdout: true
+        )
 
-      assert plan.branch_name == "nova-admin-ui"
+        on_exit(fn -> File.rm_rf!(git_dir) end)
+
+        plan = Shipper.parse_shipping_plan("No sections", nil, git_dir)
+
+        assert plan.branch_name == "nova-admin-ui"
+      end)
     end
 
     test "falls back to run_dir slug when on main" do

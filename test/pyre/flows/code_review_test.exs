@@ -1,9 +1,11 @@
 defmodule Pyre.Flows.CodeReviewTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Flows.CodeReview
+
+  @moduletag :capture_log
 
   setup do
     tmp_dir = Path.join(System.tmp_dir!(), "pyre_cr_test_#{System.unique_integer([:positive])}")
@@ -25,38 +27,42 @@ defmodule Pyre.Flows.CodeReviewTest do
   end
 
   test "runs review to completion with approve verdict", %{tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_responses, [
-      "APPROVE\n\nGreat work!"
-    ])
+    capture_io(fn ->
+      Process.put(:mock_llm_responses, [
+        "APPROVE\n\nGreat work!"
+      ])
 
-    result =
-      with_cwd(tmp_dir, fn ->
-        CodeReview.run("Review the authentication changes",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          project_dir: tmp_dir
-        )
-      end)
+      result =
+        with_cwd(tmp_dir, fn ->
+          CodeReview.run("Review the authentication changes",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
-    assert state.verdict == :approve
-    assert state.review =~ "APPROVE"
+      assert {:ok, state} = result
+      assert state.phase == :complete
+      assert state.verdict == :approve
+      assert state.review =~ "APPROVE"
+    end)
   end
 
   test "dry run skips LLM calls", %{tmp_dir: tmp_dir} do
-    result =
-      with_cwd(tmp_dir, fn ->
-        CodeReview.run("Review the changes",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          dry_run: true,
-          project_dir: tmp_dir
-        )
-      end)
+    capture_io(fn ->
+      result =
+        with_cwd(tmp_dir, fn ->
+          CodeReview.run("Review the changes",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            dry_run: true,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
+      assert {:ok, state} = result
+      assert state.phase == :complete
+    end)
   end
 
   test "propagates error from a failing action", %{tmp_dir: tmp_dir} do

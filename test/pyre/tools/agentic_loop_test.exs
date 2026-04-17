@@ -1,9 +1,11 @@
 defmodule Pyre.Tools.AgenticLoopTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Tools.AgenticLoop
+
+  @moduletag :capture_log
 
   # -- Helpers for building mock responses --
 
@@ -88,12 +90,14 @@ defmodule Pyre.Tools.AgenticLoopTest do
   # -- Final Answer Tests --
 
   test "returns final answer text" do
-    Process.put(:mock_chat_responses, [
-      {:ok, final_answer_response("Hello, world!")}
-    ])
+    capture_io(fn ->
+      Process.put(:mock_chat_responses, [
+        {:ok, final_answer_response("Hello, world!")}
+      ])
 
-    assert {:ok, "Hello, world!"} =
-             AgenticLoop.run(MockLLM, "mock-model", [], [], log_fn: fn _ -> :ok end)
+      assert {:ok, "Hello, world!"} =
+               AgenticLoop.run(MockLLM, "mock-model", [], [], log_fn: fn _ -> :ok end)
+    end)
   end
 
   test "calls output_fn with final answer text" do
@@ -112,40 +116,46 @@ defmodule Pyre.Tools.AgenticLoopTest do
   end
 
   test "returns empty string for empty final answer" do
-    Process.put(:mock_chat_responses, [
-      {:ok, final_answer_response("")}
-    ])
+    capture_io(fn ->
+      Process.put(:mock_chat_responses, [
+        {:ok, final_answer_response("")}
+      ])
 
-    assert {:ok, ""} =
-             AgenticLoop.run(MockLLM, "mock-model", [], [], log_fn: fn _ -> :ok end)
+      assert {:ok, ""} =
+               AgenticLoop.run(MockLLM, "mock-model", [], [], log_fn: fn _ -> :ok end)
+    end)
   end
 
   # -- Tool Call Tests --
 
   test "executes tool calls and loops until final answer" do
-    tool = make_tool("echo", fn %{input: input} -> {:ok, "echoed: #{input}"} end)
+    capture_io(fn ->
+      tool = make_tool("echo", fn %{input: input} -> {:ok, "echoed: #{input}"} end)
 
-    Process.put(:mock_chat_responses, [
-      {:ok, tool_call_response([make_tool_call("echo", %{input: "test"})])},
-      {:ok, final_answer_response("Done")}
-    ])
+      Process.put(:mock_chat_responses, [
+        {:ok, tool_call_response([make_tool_call("echo", %{input: "test"})])},
+        {:ok, final_answer_response("Done")}
+      ])
 
-    assert {:ok, "Done"} =
-             AgenticLoop.run(MockLLM, "mock-model", [], [tool], log_fn: fn _ -> :ok end)
+      assert {:ok, "Done"} =
+               AgenticLoop.run(MockLLM, "mock-model", [], [tool], log_fn: fn _ -> :ok end)
+    end)
   end
 
   test "accumulates text across turns" do
-    tool = make_tool("noop", fn _ -> {:ok, "ok"} end)
+    capture_io(fn ->
+      tool = make_tool("noop", fn _ -> {:ok, "ok"} end)
 
-    Process.put(:mock_chat_responses, [
-      {:ok, tool_call_response("Thinking...", [make_tool_call("noop", %{input: "x"})])},
-      {:ok, final_answer_response("Final.")}
-    ])
+      Process.put(:mock_chat_responses, [
+        {:ok, tool_call_response("Thinking...", [make_tool_call("noop", %{input: "x"})])},
+        {:ok, final_answer_response("Final.")}
+      ])
 
-    {:ok, result} =
-      AgenticLoop.run(MockLLM, "mock-model", [], [tool], log_fn: fn _ -> :ok end)
+      {:ok, result} =
+        AgenticLoop.run(MockLLM, "mock-model", [], [tool], log_fn: fn _ -> :ok end)
 
-    assert result == "Thinking...Final."
+      assert result == "Thinking...Final."
+    end)
   end
 
   test "emits inter-turn text via output_fn" do
@@ -169,153 +179,171 @@ defmodule Pyre.Tools.AgenticLoopTest do
   # -- Max Iterations --
 
   test "stops at max iterations" do
-    tool = make_tool("noop", fn _ -> {:ok, "ok"} end)
+    capture_io(fn ->
+      tool = make_tool("noop", fn _ -> {:ok, "ok"} end)
 
-    # Return tool calls forever
-    responses =
-      for _ <- 1..5 do
-        {:ok, tool_call_response([make_tool_call("noop", %{input: "x"})])}
-      end
+      # Return tool calls forever
+      responses =
+        for _ <- 1..5 do
+          {:ok, tool_call_response([make_tool_call("noop", %{input: "x"})])}
+        end
 
-    Process.put(:mock_chat_responses, responses)
+      Process.put(:mock_chat_responses, responses)
 
-    {:ok, result} =
-      AgenticLoop.run(MockLLM, "mock-model", [], [tool],
-        max_iterations: 3,
-        log_fn: fn _ -> :ok end
-      )
+      {:ok, result} =
+        AgenticLoop.run(MockLLM, "mock-model", [], [tool],
+          max_iterations: 3,
+          log_fn: fn _ -> :ok end
+        )
 
-    assert result =~ "Reached maximum tool-use iterations"
+      assert result =~ "Reached maximum tool-use iterations"
+    end)
   end
 
   # -- Error Handling --
 
   test "returns error when LLM chat fails" do
-    Process.put(:mock_chat_responses, [
-      {:error, "LLM connection failed"}
-    ])
+    capture_io(fn ->
+      Process.put(:mock_chat_responses, [
+        {:error, "LLM connection failed"}
+      ])
 
-    assert {:error, "LLM connection failed"} =
-             AgenticLoop.run(MockLLM, "mock-model", [], [], log_fn: fn _ -> :ok end)
+      assert {:error, "LLM connection failed"} =
+               AgenticLoop.run(MockLLM, "mock-model", [], [], log_fn: fn _ -> :ok end)
+    end)
   end
 
   test "handles tool not found gracefully" do
-    # LLM calls a tool that doesn't exist
-    Process.put(:mock_chat_responses, [
-      {:ok, tool_call_response([make_tool_call("nonexistent", %{input: "x"})])},
-      {:ok, final_answer_response("I apologize")}
-    ])
+    capture_io(fn ->
+      # LLM calls a tool that doesn't exist
+      Process.put(:mock_chat_responses, [
+        {:ok, tool_call_response([make_tool_call("nonexistent", %{input: "x"})])},
+        {:ok, final_answer_response("I apologize")}
+      ])
 
-    logs = Agent.start_link(fn -> [] end) |> elem(1)
+      logs = Agent.start_link(fn -> [] end) |> elem(1)
 
-    {:ok, _result} =
-      AgenticLoop.run(MockLLM, "mock-model", [], [],
-        log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
-      )
+      {:ok, _result} =
+        AgenticLoop.run(MockLLM, "mock-model", [], [],
+          log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
+        )
 
-    log_output = Agent.get(logs, & &1) |> Enum.join("\n")
-    assert log_output =~ "tool error"
-    assert log_output =~ "nonexistent"
-    assert log_output =~ "not found"
+      log_output = Agent.get(logs, & &1) |> Enum.join("\n")
+      assert log_output =~ "tool error"
+      assert log_output =~ "nonexistent"
+      assert log_output =~ "not found"
+    end)
   end
 
   test "includes tool schema in error message when tool execution fails" do
-    tool = make_tool("strict_tool", fn _args -> {:error, "validation failed"} end)
+    capture_io(fn ->
+      tool = make_tool("strict_tool", fn _args -> {:error, "validation failed"} end)
 
-    Process.put(:mock_chat_responses, [
-      {:ok, tool_call_response([make_tool_call("strict_tool", %{input: "bad"})])},
-      {:ok, final_answer_response("Fixed")}
-    ])
+      Process.put(:mock_chat_responses, [
+        {:ok, tool_call_response([make_tool_call("strict_tool", %{input: "bad"})])},
+        {:ok, final_answer_response("Fixed")}
+      ])
 
-    logs = Agent.start_link(fn -> [] end) |> elem(1)
+      logs = Agent.start_link(fn -> [] end) |> elem(1)
 
-    {:ok, _result} =
-      AgenticLoop.run(MockLLM, "mock-model", [], [tool],
-        log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
-      )
+      {:ok, _result} =
+        AgenticLoop.run(MockLLM, "mock-model", [], [tool],
+          log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
+        )
 
-    log_output = Agent.get(logs, & &1) |> Enum.join("\n")
-    assert log_output =~ "tool error"
-    assert log_output =~ "Expected parameters"
-    assert log_output =~ "input"
+      log_output = Agent.get(logs, & &1) |> Enum.join("\n")
+      assert log_output =~ "tool error"
+      assert log_output =~ "Expected parameters"
+      assert log_output =~ "input"
+    end)
   end
 
   # -- Logging --
 
   test "logs tool call names" do
-    tool = make_tool("my_tool", fn _ -> {:ok, "result"} end)
+    capture_io(fn ->
+      tool = make_tool("my_tool", fn _ -> {:ok, "result"} end)
 
-    Process.put(:mock_chat_responses, [
-      {:ok, tool_call_response([make_tool_call("my_tool", %{input: "val"})])},
-      {:ok, final_answer_response("Done")}
-    ])
+      Process.put(:mock_chat_responses, [
+        {:ok, tool_call_response([make_tool_call("my_tool", %{input: "val"})])},
+        {:ok, final_answer_response("Done")}
+      ])
 
-    logs = Agent.start_link(fn -> [] end) |> elem(1)
+      logs = Agent.start_link(fn -> [] end) |> elem(1)
 
-    AgenticLoop.run(MockLLM, "mock-model", [], [tool],
-      log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
-    )
+      AgenticLoop.run(MockLLM, "mock-model", [], [tool],
+        log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
+      )
 
-    log_output = Agent.get(logs, & &1) |> Enum.join("\n")
-    assert log_output =~ "my_tool"
-    assert log_output =~ "input"
+      log_output = Agent.get(logs, & &1) |> Enum.join("\n")
+      assert log_output =~ "my_tool"
+      assert log_output =~ "input"
+    end)
   end
 
   test "verbose mode logs full argument details" do
-    tool = make_tool("my_tool", fn _ -> {:ok, "result"} end)
+    capture_io(fn ->
+      tool = make_tool("my_tool", fn _ -> {:ok, "result"} end)
 
-    Process.put(:mock_chat_responses, [
-      {:ok, tool_call_response([make_tool_call("my_tool", %{input: "hello"})])},
-      {:ok, final_answer_response("Done")}
-    ])
+      Process.put(:mock_chat_responses, [
+        {:ok, tool_call_response([make_tool_call("my_tool", %{input: "hello"})])},
+        {:ok, final_answer_response("Done")}
+      ])
 
-    logs = Agent.start_link(fn -> [] end) |> elem(1)
+      logs = Agent.start_link(fn -> [] end) |> elem(1)
 
-    AgenticLoop.run(MockLLM, "mock-model", [], [tool],
-      verbose: true,
-      log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
-    )
+      AgenticLoop.run(MockLLM, "mock-model", [], [tool],
+        verbose: true,
+        log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
+      )
 
-    log_output = Agent.get(logs, & &1) |> Enum.join("\n")
-    assert log_output =~ "input:"
-    assert log_output =~ "hello"
-    # Verbose also logs tool results
-    assert log_output =~ "tool result"
+      log_output = Agent.get(logs, & &1) |> Enum.join("\n")
+      assert log_output =~ "input:"
+      assert log_output =~ "hello"
+      # Verbose also logs tool results
+      assert log_output =~ "tool result"
+    end)
   end
 
   test "logs EMPTY ARGS when tool called with no arguments" do
-    Process.put(:mock_chat_responses, [
-      {:ok, tool_call_response([make_tool_call("my_tool", %{})])},
-      {:ok, final_answer_response("Done")}
-    ])
+    capture_io(fn ->
+      Process.put(:mock_chat_responses, [
+        {:ok, tool_call_response([make_tool_call("my_tool", %{})])},
+        {:ok, final_answer_response("Done")}
+      ])
 
-    tool = make_tool("my_tool", fn _ -> {:ok, "ok"} end)
-    logs = Agent.start_link(fn -> [] end) |> elem(1)
+      tool = make_tool("my_tool", fn _ -> {:ok, "ok"} end)
+      logs = Agent.start_link(fn -> [] end) |> elem(1)
 
-    AgenticLoop.run(MockLLM, "mock-model", [], [tool],
-      log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
-    )
+      AgenticLoop.run(MockLLM, "mock-model", [], [tool],
+        log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
+      )
 
-    log_output = Agent.get(logs, & &1) |> Enum.join("\n")
-    assert log_output =~ "EMPTY ARGS"
+      log_output = Agent.get(logs, & &1) |> Enum.join("\n")
+      assert log_output =~ "EMPTY ARGS"
+    end)
   end
 
   # -- Multiple tool calls in one turn --
 
   test "executes multiple tool calls in a single turn" do
-    tool_a = make_tool("tool_a", fn _ -> {:ok, "result_a"} end)
-    tool_b = make_tool("tool_b", fn _ -> {:ok, "result_b"} end)
+    capture_io(fn ->
+      tool_a = make_tool("tool_a", fn _ -> {:ok, "result_a"} end)
+      tool_b = make_tool("tool_b", fn _ -> {:ok, "result_b"} end)
 
-    Process.put(:mock_chat_responses, [
-      {:ok,
-       tool_call_response([
-         make_tool_call("tool_a", %{input: "x"}),
-         make_tool_call("tool_b", %{input: "y"})
-       ])},
-      {:ok, final_answer_response("Both done")}
-    ])
+      Process.put(:mock_chat_responses, [
+        {:ok,
+         tool_call_response([
+           make_tool_call("tool_a", %{input: "x"}),
+           make_tool_call("tool_b", %{input: "y"})
+         ])},
+        {:ok, final_answer_response("Both done")}
+      ])
 
-    assert {:ok, "Both done"} =
-             AgenticLoop.run(MockLLM, "mock-model", [], [tool_a, tool_b], log_fn: fn _ -> :ok end)
+      assert {:ok, "Both done"} =
+               AgenticLoop.run(MockLLM, "mock-model", [], [tool_a, tool_b],
+                 log_fn: fn _ -> :ok end
+               )
+    end)
   end
 end

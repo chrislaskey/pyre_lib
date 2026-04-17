@@ -1,9 +1,11 @@
 defmodule Pyre.Flows.FeatureTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Flows.Feature
+
+  @moduletag :capture_log
 
   setup do
     tmp_dir = Path.join(System.tmp_dir!(), "pyre_feat_test_#{System.unique_integer([:positive])}")
@@ -25,61 +27,67 @@ defmodule Pyre.Flows.FeatureTest do
   end
 
   test "runs full pipeline to completion", %{tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_responses, [
-      "# Architecture Plan\n\n## Phase 1\n\nSetup schema.",
-      "## Branch Name\n\nfeature/products-page\n\n## PR Title\n\nAdd products page\n\n## PR Body\n\nImplements products page.",
-      "# Implementation Summary\n\nAll phases complete."
-    ])
+    capture_io(fn ->
+      Process.put(:mock_llm_responses, [
+        "# Architecture Plan\n\n## Phase 1\n\nSetup schema.",
+        "## Branch Name\n\nfeature/products-page\n\n## PR Title\n\nAdd products page\n\n## PR Body\n\nImplements products page.",
+        "# Implementation Summary\n\nAll phases complete."
+      ])
 
-    result =
-      with_cwd(tmp_dir, fn ->
-        Feature.run("Build a products page",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          project_dir: tmp_dir
-        )
-      end)
+      result =
+        with_cwd(tmp_dir, fn ->
+          Feature.run("Build a products page",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
-    assert state.architecture_plan =~ "Architecture Plan"
-    assert state.implementation_summary =~ "Implementation Summary"
+      assert {:ok, state} = result
+      assert state.phase == :complete
+      assert state.architecture_plan =~ "Architecture Plan"
+      assert state.implementation_summary =~ "Implementation Summary"
+    end)
   end
 
   test "dry run skips LLM calls", %{tmp_dir: tmp_dir} do
-    result =
-      with_cwd(tmp_dir, fn ->
-        Feature.run("Build a products page",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          dry_run: true,
-          project_dir: tmp_dir
-        )
-      end)
+    capture_io(fn ->
+      result =
+        with_cwd(tmp_dir, fn ->
+          Feature.run("Build a products page",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            dry_run: true,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
+      assert {:ok, state} = result
+      assert state.phase == :complete
+    end)
   end
 
   test "fast mode passes model override in context", %{tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_responses, [
-      "Architecture plan.",
-      "## Branch Name\n\nfeature/change\n\n## PR Title\n\nChange\n\n## PR Body\n\nChange.",
-      "Implementation done."
-    ])
+    capture_io(fn ->
+      Process.put(:mock_llm_responses, [
+        "Architecture plan.",
+        "## Branch Name\n\nfeature/change\n\n## PR Title\n\nChange\n\n## PR Body\n\nChange.",
+        "Implementation done."
+      ])
 
-    result =
-      with_cwd(tmp_dir, fn ->
-        Feature.run("Build a products page",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          fast: true,
-          project_dir: tmp_dir
-        )
-      end)
+      result =
+        with_cwd(tmp_dir, fn ->
+          Feature.run("Build a products page",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            fast: true,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
+      assert {:ok, state} = result
+      assert state.phase == :complete
+    end)
   end
 
   test "propagates error from a failing action", %{tmp_dir: tmp_dir} do
@@ -105,29 +113,31 @@ defmodule Pyre.Flows.FeatureTest do
   end
 
   test "log_fn receives stage messages", %{tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_responses, [
-      "Architecture plan.",
-      "## Branch Name\n\nfeature/change\n\n## PR Title\n\nChange\n\n## PR Body\n\nChange.",
-      "Implementation done."
-    ])
+    capture_io(fn ->
+      Process.put(:mock_llm_responses, [
+        "Architecture plan.",
+        "## Branch Name\n\nfeature/change\n\n## PR Title\n\nChange\n\n## PR Body\n\nChange.",
+        "Implementation done."
+      ])
 
-    logs = Agent.start_link(fn -> [] end) |> elem(1)
+      logs = Agent.start_link(fn -> [] end) |> elem(1)
 
-    with_cwd(tmp_dir, fn ->
-      Feature.run("Build a products page",
-        llm: Pyre.LLM.Mock,
-        streaming: false,
-        project_dir: tmp_dir,
-        log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
-      )
+      with_cwd(tmp_dir, fn ->
+        Feature.run("Build a products page",
+          llm: Pyre.LLM.Mock,
+          streaming: false,
+          project_dir: tmp_dir,
+          log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
+        )
+      end)
+
+      log_messages = Agent.get(logs, & &1)
+      assert Enum.any?(log_messages, &(&1 =~ "Run directory:"))
+      assert Enum.any?(log_messages, &(&1 =~ "Stage: software_architect"))
+      assert Enum.any?(log_messages, &(&1 =~ "Stage: pr_setup"))
+      assert Enum.any?(log_messages, &(&1 =~ "Stage: software_engineer"))
+
+      Agent.stop(logs)
     end)
-
-    log_messages = Agent.get(logs, & &1)
-    assert Enum.any?(log_messages, &(&1 =~ "Run directory:"))
-    assert Enum.any?(log_messages, &(&1 =~ "Stage: software_architect"))
-    assert Enum.any?(log_messages, &(&1 =~ "Stage: pr_setup"))
-    assert Enum.any?(log_messages, &(&1 =~ "Stage: software_engineer"))
-
-    Agent.stop(logs)
   end
 end

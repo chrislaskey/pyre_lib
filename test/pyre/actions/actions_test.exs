@@ -1,10 +1,12 @@
 defmodule Pyre.Actions.ProductManagerTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.ProductManager
   alias Pyre.Plugins.Artifact
+
+  @moduletag :capture_log
 
   setup do
     tmp_dir = Path.join(System.tmp_dir!(), "pyre_pm_test_#{System.unique_integer([:positive])}")
@@ -15,21 +17,23 @@ defmodule Pyre.Actions.ProductManagerTest do
   end
 
   test "generates requirements and writes artifact", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "# Requirements\n\nProducts page requirements.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Requirements\n\nProducts page requirements.")
 
-    params = %{feature_description: "Build a products page", run_dir: run_dir}
+      params = %{feature_description: "Build a products page", run_dir: run_dir}
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = ProductManager.run(params, context)
-    assert result.requirements =~ "Requirements"
-    assert {:ok, content} = Artifact.read(run_dir, "01_requirements")
-    assert content =~ "Requirements"
+      assert {:ok, result} = ProductManager.run(params, context)
+      assert result.requirements =~ "Requirements"
+      assert {:ok, content} = Artifact.read(run_dir, "01_requirements")
+      assert content =~ "Requirements"
+    end)
   end
 
   test "returns error when LLM fails", %{run_dir: run_dir, tmp_dir: tmp_dir} do
@@ -51,6 +55,8 @@ end
 defmodule Pyre.Actions.DesignerTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureIO
+
   alias Pyre.Actions.Designer
   alias Pyre.Plugins.Artifact
 
@@ -63,30 +69,34 @@ defmodule Pyre.Actions.DesignerTest do
   end
 
   test "generates design spec from requirements", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "# Design Spec\n\nPage layout and components.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Design Spec\n\nPage layout and components.")
 
-    params = %{
-      feature_description: "Build a products page",
-      requirements: "Product listing with search",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        requirements: "Product listing with search",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = Designer.run(params, context)
-    assert result.design =~ "Design Spec"
-    assert {:ok, content} = Artifact.read(run_dir, "02_design_spec")
-    assert content =~ "Design Spec"
+      assert {:ok, result} = Designer.run(params, context)
+      assert result.design =~ "Design Spec"
+      assert {:ok, content} = Artifact.read(run_dir, "02_design_spec")
+      assert content =~ "Design Spec"
+    end)
   end
 end
 
 defmodule Pyre.Actions.ProgrammerTest do
   use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.Programmer
   alias Pyre.Plugins.Artifact
@@ -100,53 +110,59 @@ defmodule Pyre.Actions.ProgrammerTest do
   end
 
   test "generates implementation summary", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "# Implementation\n\nCreated LiveView module.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Implementation\n\nCreated LiveView module.")
 
-    params = %{
-      feature_description: "Build a products page",
-      requirements: "Requirements content",
-      design: "Design content",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        requirements: "Requirements content",
+        design: "Design content",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = Programmer.run(params, context)
-    assert result.implementation =~ "Implementation"
-    assert {:ok, _} = Artifact.read(run_dir, "03_implementation_summary")
+      assert {:ok, result} = Programmer.run(params, context)
+      assert result.implementation =~ "Implementation"
+      assert {:ok, _} = Artifact.read(run_dir, "03_implementation_summary")
+    end)
   end
 
   test "writes versioned artifact on cycle 2+", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "# Implementation v2\n\nFixed issues.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Implementation v2\n\nFixed issues.")
 
-    params = %{
-      feature_description: "Build a products page",
-      requirements: "Requirements",
-      design: "Design",
-      run_dir: run_dir,
-      review_cycle: 2,
-      previous_verdict: "REJECT\n\nNeeds fixes."
-    }
+      params = %{
+        feature_description: "Build a products page",
+        requirements: "Requirements",
+        design: "Design",
+        run_dir: run_dir,
+        review_cycle: 2,
+        previous_verdict: "REJECT\n\nNeeds fixes."
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, _result} = Programmer.run(params, context)
-    assert {:ok, _} = Artifact.read(run_dir, "03_implementation_summary_v2")
+      assert {:ok, _result} = Programmer.run(params, context)
+      assert {:ok, _} = Artifact.read(run_dir, "03_implementation_summary_v2")
+    end)
   end
 end
 
 defmodule Pyre.Actions.TestWriterTest do
   use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.TestWriter
   alias Pyre.Plugins.Artifact
@@ -160,55 +176,61 @@ defmodule Pyre.Actions.TestWriterTest do
   end
 
   test "generates test summary", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "# Test Summary\n\nAll tests pass.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Test Summary\n\nAll tests pass.")
 
-    params = %{
-      feature_description: "Build a products page",
-      requirements: "Requirements",
-      design: "Design",
-      implementation: "Implementation",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        requirements: "Requirements",
+        design: "Design",
+        implementation: "Implementation",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = TestWriter.run(params, context)
-    assert result.tests =~ "Test Summary"
-    assert {:ok, _} = Artifact.read(run_dir, "04_test_summary")
+      assert {:ok, result} = TestWriter.run(params, context)
+      assert result.tests =~ "Test Summary"
+      assert {:ok, _} = Artifact.read(run_dir, "04_test_summary")
+    end)
   end
 
   test "writes versioned artifact on cycle 2+", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "# Tests v2\n\nImproved coverage.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "# Tests v2\n\nImproved coverage.")
 
-    params = %{
-      feature_description: "Build a products page",
-      requirements: "Requirements",
-      design: "Design",
-      implementation: "Implementation",
-      run_dir: run_dir,
-      review_cycle: 2,
-      previous_verdict: "REJECT\n\nNeed more tests."
-    }
+      params = %{
+        feature_description: "Build a products page",
+        requirements: "Requirements",
+        design: "Design",
+        implementation: "Implementation",
+        run_dir: run_dir,
+        review_cycle: 2,
+        previous_verdict: "REJECT\n\nNeed more tests."
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, _result} = TestWriter.run(params, context)
-    assert {:ok, _} = Artifact.read(run_dir, "04_test_summary_v2")
+      assert {:ok, _result} = TestWriter.run(params, context)
+      assert {:ok, _} = Artifact.read(run_dir, "04_test_summary_v2")
+    end)
   end
 end
 
 defmodule Pyre.Actions.QAReviewerTest do
   use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO
 
   alias Pyre.Actions.QAReviewer
   alias Pyre.Plugins.Artifact
@@ -222,51 +244,55 @@ defmodule Pyre.Actions.QAReviewerTest do
   end
 
   test "approves and writes verdict artifact", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "APPROVE\n\nGreat work!")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "APPROVE\n\nGreat work!")
 
-    params = %{
-      feature_description: "Build a products page",
-      requirements: "Requirements",
-      design: "Design",
-      implementation: "Implementation",
-      tests: "Tests",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        requirements: "Requirements",
+        design: "Design",
+        implementation: "Implementation",
+        tests: "Tests",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = QAReviewer.run(params, context)
-    assert result.verdict == :approve
-    assert result.verdict_text =~ "APPROVE"
-    assert {:ok, _} = Artifact.read(run_dir, "05_review_verdict")
+      assert {:ok, result} = QAReviewer.run(params, context)
+      assert result.verdict == :approve
+      assert result.verdict_text =~ "APPROVE"
+      assert {:ok, _} = Artifact.read(run_dir, "05_review_verdict")
+    end)
   end
 
   test "rejects when verdict is not APPROVE", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "REJECT\n\nNeeds more tests.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "REJECT\n\nNeeds more tests.")
 
-    params = %{
-      feature_description: "Build a products page",
-      requirements: "Requirements",
-      design: "Design",
-      implementation: "Implementation",
-      tests: "Tests",
-      run_dir: run_dir
-    }
+      params = %{
+        feature_description: "Build a products page",
+        requirements: "Requirements",
+        design: "Design",
+        implementation: "Implementation",
+        tests: "Tests",
+        run_dir: run_dir
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, result} = QAReviewer.run(params, context)
-    assert result.verdict == :reject
+      assert {:ok, result} = QAReviewer.run(params, context)
+      assert result.verdict == :reject
+    end)
   end
 
   test "parse_verdict detects APPROVE case-insensitively" do
@@ -287,26 +313,28 @@ defmodule Pyre.Actions.QAReviewerTest do
   end
 
   test "writes versioned verdict artifact on cycle 2+", %{run_dir: run_dir, tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_response, "APPROVE\n\nBetter now.")
+    capture_io(fn ->
+      Process.put(:mock_llm_response, "APPROVE\n\nBetter now.")
 
-    params = %{
-      feature_description: "Build a products page",
-      requirements: "Requirements",
-      design: "Design",
-      implementation: "Implementation",
-      tests: "Tests",
-      run_dir: run_dir,
-      review_cycle: 2
-    }
+      params = %{
+        feature_description: "Build a products page",
+        requirements: "Requirements",
+        design: "Design",
+        implementation: "Implementation",
+        tests: "Tests",
+        run_dir: run_dir,
+        review_cycle: 2
+      }
 
-    context = %{
-      llm: Pyre.LLM.Mock,
-      streaming: false,
-      working_dir: tmp_dir,
-      allowed_paths: [tmp_dir]
-    }
+      context = %{
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        working_dir: tmp_dir,
+        allowed_paths: [tmp_dir]
+      }
 
-    assert {:ok, _result} = QAReviewer.run(params, context)
-    assert {:ok, _} = Artifact.read(run_dir, "05_review_verdict_v2")
+      assert {:ok, _result} = QAReviewer.run(params, context)
+      assert {:ok, _} = Artifact.read(run_dir, "05_review_verdict_v2")
+    end)
   end
 end

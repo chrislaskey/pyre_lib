@@ -1,9 +1,11 @@
 defmodule Pyre.Flows.PrototypeTest do
   use ExUnit.Case, async: false
 
-  @moduletag :capture_log
+  import ExUnit.CaptureIO
 
   alias Pyre.Flows.Prototype
+
+  @moduletag :capture_log
 
   setup do
     tmp_dir =
@@ -27,37 +29,41 @@ defmodule Pyre.Flows.PrototypeTest do
   end
 
   test "runs to completion with single mock response", %{tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_responses, [
-      "### What Was Built\n- Products listing page prototype"
-    ])
+    capture_io(fn ->
+      Process.put(:mock_llm_responses, [
+        "### What Was Built\n- Products listing page prototype"
+      ])
 
-    result =
-      with_cwd(tmp_dir, fn ->
-        Prototype.run("Build a products listing page",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          project_dir: tmp_dir
-        )
-      end)
+      result =
+        with_cwd(tmp_dir, fn ->
+          Prototype.run("Build a products listing page",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
-    assert state.prototype_output =~ "What Was Built"
+      assert {:ok, state} = result
+      assert state.phase == :complete
+      assert state.prototype_output =~ "What Was Built"
+    end)
   end
 
   test "dry run skips LLM calls", %{tmp_dir: tmp_dir} do
-    result =
-      with_cwd(tmp_dir, fn ->
-        Prototype.run("Build a prototype",
-          llm: Pyre.LLM.Mock,
-          streaming: false,
-          dry_run: true,
-          project_dir: tmp_dir
-        )
-      end)
+    capture_io(fn ->
+      result =
+        with_cwd(tmp_dir, fn ->
+          Prototype.run("Build a prototype",
+            llm: Pyre.LLM.Mock,
+            streaming: false,
+            dry_run: true,
+            project_dir: tmp_dir
+          )
+        end)
 
-    assert {:ok, state} = result
-    assert state.phase == :complete
+      assert {:ok, state} = result
+      assert state.phase == :complete
+    end)
   end
 
   test "propagates error from a failing LLM", %{tmp_dir: tmp_dir} do
@@ -87,25 +93,27 @@ defmodule Pyre.Flows.PrototypeTest do
   end
 
   test "log_fn receives stage messages", %{tmp_dir: tmp_dir} do
-    Process.put(:mock_llm_responses, [
-      "Prototype completed."
-    ])
+    capture_io(fn ->
+      Process.put(:mock_llm_responses, [
+        "Prototype completed."
+      ])
 
-    logs = Agent.start_link(fn -> [] end) |> elem(1)
+      logs = Agent.start_link(fn -> [] end) |> elem(1)
 
-    with_cwd(tmp_dir, fn ->
-      Prototype.run("Build a prototype",
-        llm: Pyre.LLM.Mock,
-        streaming: false,
-        project_dir: tmp_dir,
-        log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
-      )
+      with_cwd(tmp_dir, fn ->
+        Prototype.run("Build a prototype",
+          llm: Pyre.LLM.Mock,
+          streaming: false,
+          project_dir: tmp_dir,
+          log_fn: fn msg -> Agent.update(logs, &(&1 ++ [msg])) end
+        )
+      end)
+
+      log_messages = Agent.get(logs, & &1)
+      assert Enum.any?(log_messages, &(&1 =~ "Run directory:"))
+      assert Enum.any?(log_messages, &(&1 =~ "Stage: prototype_engineer"))
+
+      Agent.stop(logs)
     end)
-
-    log_messages = Agent.get(logs, & &1)
-    assert Enum.any?(log_messages, &(&1 =~ "Run directory:"))
-    assert Enum.any?(log_messages, &(&1 =~ "Stage: prototype_engineer"))
-
-    Agent.stop(logs)
   end
 end
