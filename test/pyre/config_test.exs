@@ -106,7 +106,7 @@ defmodule Pyre.ConfigTest do
     test "returns list of backend entries with required fields" do
       backends = Config.included_llm_backends()
       assert is_list(backends)
-      assert length(backends) > 0
+      refute Enum.empty?(backends)
 
       for entry <- backends do
         assert is_atom(entry.module)
@@ -221,7 +221,7 @@ defmodule Pyre.ConfigTest do
     test "returns list of workflow entries with required fields" do
       workflows = Config.included_workflows()
       assert is_list(workflows)
-      assert length(workflows) > 0
+      refute Enum.empty?(workflows)
 
       for entry <- workflows do
         assert is_atom(entry.name)

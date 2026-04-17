@@ -38,9 +38,7 @@ defmodule PyreWeb.GitHubCallbackController do
   end
 
   defp exchange_code(code) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       case apply(Req, :post, [
              "https://api.github.com/app-manifests/#{code}/conversions",
              [headers: [{"accept", "application/vnd.github+json"}]]
@@ -63,6 +61,8 @@ defmodule PyreWeb.GitHubCallbackController do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 

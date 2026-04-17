@@ -171,20 +171,20 @@ defmodule Pyre.LLM.ClaudeCLI do
     system_parts =
       messages
       |> Enum.filter(fn %{role: role} -> role == :system end)
-      |> Enum.map(fn %{content: content} -> to_text(content) end)
-      |> Enum.join("\n\n")
+      |> Enum.map_join("\n\n", fn %{content: content} -> to_text(content) end)
 
     user_parts =
       messages
       |> Enum.filter(fn %{role: role} -> role == :user end)
-      |> Enum.map(fn %{content: content} -> to_text(content) end)
-      |> Enum.join("\n\n")
+      |> Enum.map_join("\n\n", fn %{content: content} -> to_text(content) end)
 
     # Embed persona/system instructions directly in the user prompt so
     # Claude Code follows them more reliably.  The same content is still
     # passed via --append-system-prompt for system-level positioning.
     user_prompt =
-      if system_parts != "" do
+      if system_parts == "" do
+        user_parts
+      else
         """
         <persona>
         #{system_parts}
@@ -195,8 +195,6 @@ defmodule Pyre.LLM.ClaudeCLI do
 
         #{user_parts}\
         """
-      else
-        user_parts
       end
 
     {system_parts, user_prompt}
@@ -442,10 +440,10 @@ defmodule Pyre.LLM.ClaudeCLI do
   defp build_base_args(model, system_prompt) do
     args = ["--model", model]
 
-    if system_prompt != "" do
-      args ++ ["--append-system-prompt", system_prompt]
-    else
+    if system_prompt == "" do
       args
+    else
+      args ++ ["--append-system-prompt", system_prompt]
     end
   end
 

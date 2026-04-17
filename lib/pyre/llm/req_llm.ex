@@ -16,7 +16,7 @@ defmodule Pyre.LLM.ReqLLM do
   @impl true
   def generate(model, messages, opts \\ []) do
     context = build_reqllm_context(messages)
-    req_opts = Keyword.drop(opts, [:output_fn])
+    req_opts = Keyword.delete(opts, :output_fn)
 
     case ReqLLM.generate_text(model, context, req_opts) do
       {:ok, response} -> {:ok, ReqLLM.Response.text(response)}
@@ -28,7 +28,7 @@ defmodule Pyre.LLM.ReqLLM do
   def stream(model, messages, opts \\ []) do
     output_fn = Keyword.get(opts, :output_fn, &IO.write/1)
     context = build_reqllm_context(messages)
-    req_opts = Keyword.drop(opts, [:output_fn])
+    req_opts = Keyword.delete(opts, :output_fn)
 
     case ReqLLM.stream_text(model, context, req_opts) do
       {:ok, response} ->

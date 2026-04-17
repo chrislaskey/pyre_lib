@@ -49,7 +49,7 @@ defmodule Pyre.GitHub.App do
 
     case :ets.lookup(__MODULE__, {:token, installation_id}) do
       [{_, token, expires_at}] ->
-        if DateTime.compare(expires_at, DateTime.utc_now()) == :gt do
+        if DateTime.after?(expires_at, DateTime.utc_now()) do
           {:ok, token}
         else
           refresh_installation_token(installation_id)

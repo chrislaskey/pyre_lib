@@ -142,7 +142,6 @@ defmodule Pyre.Actions.Helpers do
   def assemble_artifacts(artifacts) do
     artifacts
     |> Enum.reject(fn {_name, content} -> is_nil(content) or content == "" end)
-    |> Enum.map(fn {name, content} -> "## #{name}\n\n#{content}" end)
-    |> Enum.join("\n\n---\n\n")
+    |> Enum.map_join("\n\n---\n\n", fn {name, content} -> "## #{name}\n\n#{content}" end)
   end
 end

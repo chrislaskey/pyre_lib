@@ -163,7 +163,7 @@ defmodule Pyre.RunServerTest do
 
     {:ok, log} = Pyre.RunServer.get_log(id)
     assert is_list(log)
-    assert length(log) > 0
+    refute Enum.empty?(log)
     assert Enum.all?(log, &(is_map(&1) and Map.has_key?(&1, :id)))
   end
 
@@ -219,7 +219,7 @@ defmodule Pyre.RunServerTest do
 
     # We should have received at least some events
     messages = flush_messages()
-    assert length(messages) > 0
+    refute Enum.empty?(messages)
   end
 
   test "completed run has :complete status and 'Pipeline complete.' in log", %{tmp_dir: tmp_dir} do

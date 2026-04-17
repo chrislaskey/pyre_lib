@@ -10,6 +10,7 @@ Application.put_env(:pyre, :pubsub, PyreWeb.Test.PubSub)
 
 defmodule PyreWeb.Test.Router do
   use Phoenix.Router
+
   import PyreWeb.Router
 
   pipeline :browser do

@@ -92,6 +92,7 @@ defmodule Pyre.Actions.ShipperTest do
     test "propagates LLM error", %{run_dir: run_dir, tmp_dir: tmp_dir} do
       defmodule FailingShipperLLM do
         use Pyre.LLM
+
         def generate(_, _, _ \\ []), do: {:error, :api_error}
         def stream(_, _, _ \\ []), do: {:error, :api_error}
         def chat(_, _, _, _ \\ []), do: {:error, :api_error}

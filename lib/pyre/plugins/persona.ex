@@ -63,6 +63,7 @@ defmodule Pyre.Plugins.Persona do
         attachments \\ []
       ) do
     alias Pyre.Plugins.Artifact
+    alias ReqLLM.Message.ContentPart
 
     text_attachments = Enum.filter(attachments, &Artifact.text_attachment?/1)
     image_attachments = Enum.filter(attachments, &Artifact.image_attachment?/1)
@@ -72,22 +73,22 @@ defmodule Pyre.Plugins.Persona do
     sections = sections ++ ["## Feature Request\n\n#{feature_description}"]
 
     sections =
-      if text_attachments != [] do
+      if text_attachments == [] do
+        sections
+      else
         attachment_sections =
           Enum.map(text_attachments, fn att ->
             "### #{att.filename}\n\n#{att.content}"
           end)
 
         sections ++ ["## Prompt Attachments\n\n#{Enum.join(attachment_sections, "\n\n")}"]
-      else
-        sections
       end
 
     sections =
-      if artifacts_content != "" do
-        sections ++ ["## Prior Artifacts\n\n#{artifacts_content}"]
-      else
+      if artifacts_content == "" do
         sections
+      else
+        sections ++ ["## Prior Artifacts\n\n#{artifacts_content}"]
       end
 
     output_path = Path.join(run_dir, artifact_filename)
@@ -99,8 +100,6 @@ defmodule Pyre.Plugins.Persona do
         ]
 
     text_body = Enum.join(sections, "\n\n")
-
-    alias ReqLLM.Message.ContentPart
 
     if image_attachments == [] do
       %{role: :user, content: text_body}
@@ -120,8 +119,7 @@ defmodule Pyre.Plugins.Persona do
            normalize_allowed_paths(allowed_paths) do
       allowed_lines =
         normalized_paths
-        |> Enum.map(&"  - `#{&1}`")
-        |> Enum.join("\n")
+        |> Enum.map_join("\n", &"  - `#{&1}`")
 
       [
         """

@@ -42,7 +42,7 @@ defmodule PyreWeb.Channel do
     connection_id =
       socket.assigns[:connection_id] || params["connection_id"] || socket.id || "anonymous"
 
-    metadata = Map.drop(params, ["connection_id"])
+    metadata = Map.delete(params, "connection_id")
 
     # Subscribe to actions targeted at this specific connection
     if pubsub = Application.get_env(:pyre, :pubsub) do

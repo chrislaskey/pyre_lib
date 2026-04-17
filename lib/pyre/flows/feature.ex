@@ -31,8 +31,8 @@ defmodule Pyre.Flows.Feature do
   """
 
   alias Pyre.Actions.{
-    SoftwareArchitect,
     PRSetup,
+    SoftwareArchitect,
     SoftwareEngineer
   }
 

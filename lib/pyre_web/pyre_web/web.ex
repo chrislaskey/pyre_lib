@@ -5,6 +5,7 @@ defmodule PyreWeb.Web do
     quote do
       @moduledoc false
       use Phoenix.Component
+
       import Phoenix.HTML
     end
   end
@@ -12,6 +13,7 @@ defmodule PyreWeb.Web do
   def live_view do
     quote do
       use Phoenix.LiveView
+
       import Phoenix.HTML
       import PyreWeb.Components.Layouts
 
@@ -31,6 +33,7 @@ defmodule PyreWeb.Web do
     quote do
       @moduledoc false
       use Phoenix.LiveComponent
+
       import Phoenix.HTML
     end
   end

@@ -2,12 +2,12 @@ defmodule Pyre.EventsTest do
   use ExUnit.Case, async: true
 
   alias Pyre.Events.{
-    FlowStarted,
-    FlowCompleted,
-    FlowError,
-    ActionStarted,
     ActionCompleted,
     ActionError,
+    ActionStarted,
+    FlowCompleted,
+    FlowError,
+    FlowStarted,
     LLMCallCompleted,
     LLMCallError
   }

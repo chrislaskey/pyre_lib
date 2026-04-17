@@ -165,7 +165,7 @@ defmodule Pyre.Tools.AgenticLoop do
   # Builds actionable error messages that tell the LLM exactly what went wrong
   # and what parameters are expected.
   defp format_tool_error(name, {:not_found, _}, tools) do
-    available = tools |> Enum.map(& &1.name) |> Enum.join(", ")
+    available = tools |> Enum.map_join(", ", & &1.name)
     "Error: Tool '#{name}' not found. Available tools: #{available}"
   end
 
@@ -190,13 +190,12 @@ defmodule Pyre.Tools.AgenticLoop do
       tool ->
         params =
           tool.parameter_schema
-          |> Enum.map(fn {key, opts} ->
+          |> Enum.map_join("\n", fn {key, opts} ->
             type = Keyword.get(opts, :type, :any)
             required? = Keyword.get(opts, :required, false)
             suffix = if required?, do: " (required)", else: ""
             "  - #{key}: #{type}#{suffix}"
           end)
-          |> Enum.join("\n")
 
         "\n\nExpected parameters for '#{name}':\n#{params}\n\nEnsure all required parameters are provided with correct types."
     end

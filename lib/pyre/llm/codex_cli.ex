@@ -151,20 +151,20 @@ defmodule Pyre.LLM.CodexCLI do
     system_parts =
       messages
       |> Enum.filter(fn %{role: role} -> role == :system end)
-      |> Enum.map(fn %{content: content} -> to_text(content) end)
-      |> Enum.join("\n\n")
+      |> Enum.map_join("\n\n", fn %{content: content} -> to_text(content) end)
 
     user_parts =
       messages
       |> Enum.filter(fn %{role: role} -> role == :user end)
-      |> Enum.map(fn %{content: content} -> to_text(content) end)
-      |> Enum.join("\n\n")
+      |> Enum.map_join("\n\n", fn %{content: content} -> to_text(content) end)
 
     # Embed persona/system instructions directly in the user prompt.
     # codex uses AGENTS.md or --config developer_instructions for system context,
     # but in-prompt embedding is portable and works reliably.
     user_prompt =
-      if system_parts != "" do
+      if system_parts == "" do
+        user_parts
+      else
         """
         <persona>
         #{system_parts}
@@ -175,8 +175,6 @@ defmodule Pyre.LLM.CodexCLI do
 
         #{user_parts}\
         """
-      else
-        user_parts
       end
 
     {system_parts, user_prompt}

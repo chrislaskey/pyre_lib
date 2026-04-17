@@ -4,9 +4,9 @@ defmodule PyreWeb.Test.ConnCase do
 
   using do
     quote do
-      import Plug.Conn
       import Phoenix.ConnTest
       import Phoenix.LiveViewTest
+      import Plug.Conn
 
       @endpoint PyreWeb.Test.Endpoint
     end

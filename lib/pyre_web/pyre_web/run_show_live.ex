@@ -372,12 +372,12 @@ defmodule PyreWeb.RunShowLive do
   end
 
   defp toggleable?(phase_key, current, status, phase_order) do
-    if status != :running do
-      false
-    else
+    if status == :running do
       current_idx = Enum.find_index(phase_order, &(&1 == current)) || 0
       phase_idx = Enum.find_index(phase_order, &(&1 == phase_key)) || 0
       phase_idx > current_idx
+    else
+      false
     end
   end
 

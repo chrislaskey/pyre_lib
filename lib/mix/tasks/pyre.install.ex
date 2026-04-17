@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Pyre.Install do
+  @shortdoc "Installs Pyre persona files and features directory"
+
   @moduledoc """
   Installs Pyre into a Phoenix project.
 
@@ -17,8 +19,6 @@ defmodule Mix.Tasks.Pyre.Install do
   Files that already exist are not overwritten, so local customizations
   to personas are preserved.
   """
-  @shortdoc "Installs Pyre persona files and features directory"
-
   use Igniter.Mix.Task
 
   @personas ~w(product_manager designer programmer test_writer code_reviewer software_architect software_engineer shipper generalist prototype_engineer)

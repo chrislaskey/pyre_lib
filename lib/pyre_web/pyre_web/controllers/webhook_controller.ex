@@ -8,9 +8,9 @@ defmodule PyreWeb.WebhookController do
 
   use Phoenix.Controller, formats: [:json]
 
-  plug(:skip_csrf_protection)
-
   require Logger
+
+  plug(:skip_csrf_protection)
 
   def github(conn, params) do
     raw_body = conn.private[:raw_body] || ""

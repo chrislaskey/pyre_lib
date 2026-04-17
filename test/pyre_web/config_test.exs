@@ -268,6 +268,7 @@ defmodule PyreWeb.ConfigTest do
 
   defmodule WithSidebarFooter do
     use PyreWeb.Config
+
     import Phoenix.Component, only: [sigil_H: 2]
 
     @impl true

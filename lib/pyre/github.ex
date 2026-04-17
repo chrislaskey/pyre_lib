@@ -113,9 +113,7 @@ defmodule Pyre.GitHub do
   @spec create_pull_request(String.t(), String.t(), map(), String.t()) ::
           {:ok, %{url: String.t(), number: integer()}} | {:error, term()}
   def create_pull_request(owner, repo, params, token) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       body = %{
         title: params[:title] || params.title,
         body: params[:body] || params.body,
@@ -151,6 +149,8 @@ defmodule Pyre.GitHub do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 
@@ -163,9 +163,7 @@ defmodule Pyre.GitHub do
   @spec find_open_pull_request(String.t(), String.t(), String.t(), String.t()) ::
           {:ok, %{url: String.t(), number: integer()}} | {:error, term()}
   def find_open_pull_request(owner, repo, head_branch, token) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       case Req.get(
              "#{@base_url}/repos/#{owner}/#{repo}/pulls?head=#{owner}:#{head_branch}&state=open",
              headers: [
@@ -186,6 +184,8 @@ defmodule Pyre.GitHub do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 
@@ -206,9 +206,7 @@ defmodule Pyre.GitHub do
   @spec create_review(String.t(), String.t(), integer(), String.t(), String.t(), String.t()) ::
           {:ok, %{id: integer()}} | {:error, term()}
   def create_review(owner, repo, pr_number, body, event, token) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       request_body = %{body: body, event: event}
 
       case Req.post("#{@base_url}/repos/#{owner}/#{repo}/pulls/#{pr_number}/reviews",
@@ -234,6 +232,8 @@ defmodule Pyre.GitHub do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 
@@ -245,9 +245,7 @@ defmodule Pyre.GitHub do
   @spec create_comment(String.t(), String.t(), integer(), String.t(), String.t()) ::
           {:ok, %{id: integer()}} | {:error, term()}
   def create_comment(owner, repo, pr_number, body, token) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       case Req.post("#{@base_url}/repos/#{owner}/#{repo}/issues/#{pr_number}/comments",
              json: %{body: body},
              headers: [
@@ -265,6 +263,8 @@ defmodule Pyre.GitHub do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 
@@ -276,9 +276,7 @@ defmodule Pyre.GitHub do
   @spec mark_ready_for_review(String.t(), String.t(), integer(), String.t()) ::
           :ok | {:error, term()}
   def mark_ready_for_review(owner, repo, pr_number, token) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       # First, get the PR's node_id via REST
       case Req.get("#{@base_url}/repos/#{owner}/#{repo}/pulls/#{pr_number}",
              headers: [
@@ -297,6 +295,8 @@ defmodule Pyre.GitHub do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 
@@ -382,9 +382,7 @@ defmodule Pyre.GitHub do
   @spec get_pull_request(String.t(), String.t(), integer(), String.t()) ::
           {:ok, map()} | {:error, term()}
   def get_pull_request(owner, repo, pr_number, token) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       case Req.get("#{@base_url}/repos/#{owner}/#{repo}/pulls/#{pr_number}",
              headers: auth_headers(token)
            ) do
@@ -409,6 +407,8 @@ defmodule Pyre.GitHub do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 
@@ -418,9 +418,7 @@ defmodule Pyre.GitHub do
   @spec get_pull_request_diff(String.t(), String.t(), integer(), String.t()) ::
           {:ok, String.t()} | {:error, term()}
   def get_pull_request_diff(owner, repo, pr_number, token) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       case Req.get("#{@base_url}/repos/#{owner}/#{repo}/pulls/#{pr_number}",
              headers: [
                {"authorization", "Bearer #{token}"},
@@ -436,6 +434,8 @@ defmodule Pyre.GitHub do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 
@@ -445,9 +445,7 @@ defmodule Pyre.GitHub do
   @spec create_comment_reply(String.t(), String.t(), integer(), integer(), String.t(), String.t()) ::
           {:ok, %{id: integer()}} | {:error, term()}
   def create_comment_reply(owner, repo, pr_number, in_reply_to, body, token) do
-    unless Code.ensure_loaded?(Req) do
-      {:error, :req_not_available}
-    else
+    if Code.ensure_loaded?(Req) do
       case Req.post("#{@base_url}/repos/#{owner}/#{repo}/pulls/#{pr_number}/comments",
              json: %{body: body, in_reply_to: in_reply_to},
              headers: auth_headers(token)
@@ -461,6 +459,8 @@ defmodule Pyre.GitHub do
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
+    else
+      {:error, :req_not_available}
     end
   end
 

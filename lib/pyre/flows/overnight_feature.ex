@@ -33,7 +33,7 @@ defmodule Pyre.Flows.OvernightFeature do
       Typically set via `config :pyre, :github` in `runtime.exs`.
   """
 
-  alias Pyre.Actions.{ProductManager, Designer, Programmer, TestWriter, QAReviewer, Shipper}
+  alias Pyre.Actions.{Designer, ProductManager, Programmer, QAReviewer, Shipper, TestWriter}
   alias Pyre.Plugins.Artifact
 
   @max_review_cycles 3

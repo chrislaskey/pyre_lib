@@ -249,15 +249,16 @@ defmodule Pyre.LLM.CursorCLI do
     trimmed = String.trim(output)
 
     # Try JSON array format first (--output-format json)
-    with {:ok, items} when is_list(items) <- Jason.decode(trimmed) do
-      session_id =
-        Enum.find_value(items, fn
-          %{"session_id" => id} when is_binary(id) and id != "" -> id
-          _ -> nil
-        end)
+    case Jason.decode(trimmed) do
+      {:ok, items} when is_list(items) ->
+        session_id =
+          Enum.find_value(items, fn
+            %{"session_id" => id} when is_binary(id) and id != "" -> id
+            _ -> nil
+          end)
 
-      if session_id, do: {:ok, session_id}, else: :error
-    else
+        if session_id, do: {:ok, session_id}, else: :error
+
       _ ->
         # Try NDJSON (one JSON object per line)
         session_id =
@@ -310,8 +311,7 @@ defmodule Pyre.LLM.CursorCLI do
   def extract_user_parts(messages) when is_list(messages) do
     messages
     |> Enum.filter(fn %{role: role} -> role == :user end)
-    |> Enum.map(fn %{content: content} -> to_text(content) end)
-    |> Enum.join("\n\n")
+    |> Enum.map_join("\n\n", fn %{content: content} -> to_text(content) end)
   end
 
   def extract_user_parts(_), do: "Please continue."
@@ -334,20 +334,20 @@ defmodule Pyre.LLM.CursorCLI do
     system_parts =
       messages
       |> Enum.filter(fn %{role: role} -> role == :system end)
-      |> Enum.map(fn %{content: content} -> to_text(content) end)
-      |> Enum.join("\n\n")
+      |> Enum.map_join("\n\n", fn %{content: content} -> to_text(content) end)
 
     user_parts =
       messages
       |> Enum.filter(fn %{role: role} -> role == :user end)
-      |> Enum.map(fn %{content: content} -> to_text(content) end)
-      |> Enum.join("\n\n")
+      |> Enum.map_join("\n\n", fn %{content: content} -> to_text(content) end)
 
     # Embed persona/system instructions directly in the user prompt.
     # cursor-agent does not have a --append-system-prompt flag; this approach
     # works reliably since the underlying model follows in-prompt instructions.
     user_prompt =
-      if system_parts != "" do
+      if system_parts == "" do
+        user_parts
+      else
         """
         <persona>
         #{system_parts}
@@ -358,8 +358,6 @@ defmodule Pyre.LLM.CursorCLI do
 
         #{user_parts}\
         """
-      else
-        user_parts
       end
 
     {system_parts, user_prompt}

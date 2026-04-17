@@ -29,7 +29,7 @@ defmodule PyreWeb.SettingsGithubAppsShowLive do
 
   @impl true
   def handle_event("set_org", %{"org_name" => org_name}, socket) do
-    org_name = if org_name == "", do: nil, else: String.trim(org_name)
+    org_name = if org_name != "", do: String.trim(org_name)
     {:noreply, assign(socket, :org_name, org_name)}
   end
 
@@ -62,7 +62,7 @@ defmodule PyreWeb.SettingsGithubAppsShowLive do
       nil ->
         parsed = URI.parse(uri)
 
-        "#{parsed.scheme}://#{parsed.host}#{if parsed.port not in [80, 443], do: ":#{parsed.port}", else: ""}"
+        "#{parsed.scheme}://#{parsed.host}#{if parsed.port in [80, 443], do: "", else: ":#{parsed.port}"}"
 
       url ->
         String.trim_trailing(url, "/")

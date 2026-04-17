@@ -487,7 +487,7 @@ defmodule PyreWeb.Components.Layouts do
     new_params = Map.put(params, "sidebar", new_nav)
     new_query = URI.encode_query(new_params)
 
-    %URI{parsed | query: new_query} |> URI.to_string()
+    %{parsed | query: new_query} |> URI.to_string()
   end
 
   defp menu_open?(uri) when uri in ["", nil], do: false
@@ -513,6 +513,6 @@ defmodule PyreWeb.Components.Layouts do
     new_params = Map.put(params, "menu", new_menu)
     new_query = URI.encode_query(new_params)
 
-    %URI{parsed | query: new_query} |> URI.to_string()
+    %{parsed | query: new_query} |> URI.to_string()
   end
 end

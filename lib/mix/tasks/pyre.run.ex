@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Pyre.Run do
+  @shortdoc "Runs multi-agent pipeline to build a Phoenix feature"
+
   @moduledoc """
   Runs the multi-agent pipeline to build a Phoenix feature.
 
@@ -37,8 +39,6 @@ defmodule Mix.Tasks.Pyre.Run do
     - `05_review_verdict.md` -- Code Reviewer verdict (APPROVE/REJECT)
     - `06_shipping_summary.md` -- Shipper output (branch, commit, PR URL)
   """
-  @shortdoc "Runs multi-agent pipeline to build a Phoenix feature"
-
   use Mix.Task
 
   @switches [
@@ -95,7 +95,7 @@ defmodule Mix.Tasks.Pyre.Run do
 
   defp load_attachments(paths) do
     Enum.map(paths, fn path ->
-      unless File.exists?(path) do
+      if !File.exists?(path) do
         Mix.raise("Attachment not found: #{path}")
       end
 

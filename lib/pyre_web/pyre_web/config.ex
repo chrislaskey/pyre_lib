@@ -48,8 +48,9 @@ defmodule PyreWeb.Config do
   authorization returns `:ok` (fail-open), data callbacks return `nil`.
   """
 
-  require Logger
   import Phoenix.Component, only: [sigil_H: 2]
+
+  require Logger
 
   # -- Authorization Callbacks --
 

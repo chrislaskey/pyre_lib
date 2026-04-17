@@ -121,7 +121,7 @@ defmodule PyreWeb.RunNewLive do
     if desc == "" do
       {:noreply, put_flash(socket, :error, "Feature description cannot be empty.")}
     else
-      feature = if feature_name == "", do: nil, else: feature_name
+      feature = if feature_name != "", do: feature_name
 
       run_params = %{
         description: desc,

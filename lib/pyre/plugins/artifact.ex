@@ -177,7 +177,10 @@ defmodule Pyre.Plugins.Artifact do
     base_name = String.replace_trailing(base_name, ".md", "")
     pattern = Path.join(run_dir, "#{base_name}*.md")
 
-    case Path.wildcard(pattern) |> Enum.sort() |> List.last() do
+    Path.wildcard(pattern)
+    |> Enum.sort()
+    |> List.last()
+    |> case do
       nil ->
         {:error, :not_found}
 

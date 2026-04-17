@@ -1,22 +1,20 @@
+default_allowed_commands = [
+  "MIX_ENV=test mix",
+  "mix",
+  "elixir",
+  "git",
+  "cat",
+  "ls",
+  "grep",
+  "find",
+  "head",
+  "tail",
+  "wc",
+  "mkdir",
+  "echo"
+]
+
 defmodule Pyre.Tools do
-  @max_output_bytes 10_000
-
-  @default_allowed_commands [
-    "MIX_ENV=test mix",
-    "mix",
-    "elixir",
-    "git",
-    "cat",
-    "ls",
-    "grep",
-    "find",
-    "head",
-    "tail",
-    "wc",
-    "mkdir",
-    "echo"
-  ]
-
   @moduledoc """
   Tool definitions for LLM agent actions.
 
@@ -43,8 +41,12 @@ defmodule Pyre.Tools do
   Set the `PYRE_ALLOWED_PATHS` environment variable (comma-separated) to
   configure allowed paths globally.
 
-  Default allowed commands: #{inspect(@default_allowed_commands)}
+  Default allowed commands: #{inspect(default_allowed_commands)}
   """
+
+  @max_output_bytes 10_000
+
+  @default_allowed_commands default_allowed_commands
 
   @doc """
   Returns the default allowed commands list.
@@ -304,7 +306,7 @@ defmodule Pyre.Tools do
         full_path == expanded or String.starts_with?(full_path, expanded <> "/")
       end)
 
-    unless allowed? do
+    if !allowed? do
       raise ArgumentError, "Path traversal blocked: #{relative_path}"
     end
 
@@ -327,7 +329,7 @@ defmodule Pyre.Tools do
         trimmed == prefix or String.starts_with?(trimmed, prefix <> " ")
       end)
 
-    unless allowed? do
+    if !allowed? do
       raise ArgumentError,
             "Command not allowed: #{trimmed}. Allowed: #{Enum.join(allowed_commands, ", ")}"
     end

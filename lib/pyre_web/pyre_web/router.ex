@@ -40,11 +40,11 @@ defmodule PyreWeb.Router do
 
     quote bind_quoted: binding() do
       scope path, alias: false, as: false do
+        import Phoenix.LiveView.Router, only: [live: 4, live_session: 3]
+        import Phoenix.Router, only: [get: 4, post: 4]
+
         {session_name, session_opts, route_opts} =
           PyreWeb.Router.__options__(opts)
-
-        import Phoenix.Router, only: [get: 4, post: 4]
-        import Phoenix.LiveView.Router, only: [live: 4, live_session: 3]
 
         live_session session_name, session_opts do
           get("/js-:md5", PyreWeb.Assets, :js, as: :pyre_web_asset)
@@ -69,7 +69,7 @@ defmodule PyreWeb.Router do
         post("/webhooks/github", PyreWeb.WebhookController, :github, as: :pyre_webhook)
       end
 
-      unless Module.get_attribute(__MODULE__, :pyre_web_prefix) do
+      if !Module.get_attribute(__MODULE__, :pyre_web_prefix) do
         @pyre_web_prefix Phoenix.Router.scoped_path(__MODULE__, path)
                          |> String.replace_suffix("/", "")
 

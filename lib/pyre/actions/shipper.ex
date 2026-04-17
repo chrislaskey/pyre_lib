@@ -132,13 +132,12 @@ defmodule Pyre.Actions.Shipper do
     text
     |> String.split(~r/^## /m)
     |> Enum.drop(1)
-    |> Enum.map(fn section ->
+    |> Map.new(fn section ->
       case String.split(section, "\n", parts: 2) do
         [heading, body] -> {String.trim(heading), String.trim(body)}
         [heading] -> {String.trim(heading), ""}
       end
     end)
-    |> Map.new()
   end
 
   defp strip_code_fences(text) do
@@ -246,7 +245,7 @@ defmodule Pyre.Actions.Shipper do
          ) do
       {branch, 0} ->
         branch = String.trim(branch)
-        if branch in ["main", "master"], do: nil, else: branch
+        if branch not in ["main", "master"], do: branch
 
       _ ->
         nil

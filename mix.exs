@@ -60,7 +60,8 @@ defmodule Pyre.MixProject do
       {:phoenix_live_view, "~> 1.0"},
       {:jason, "~> 1.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:quokka, "~> 2.12", only: [:dev, :test], runtime: false}
     ]
   end
 end
