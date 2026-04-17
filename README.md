@@ -535,13 +535,12 @@ defmodule MyApp.Pyre.Config do
 end
 ```
 
-Then register it in your config. Each library reads its own application
-environment, so both entries are required:
+Then register it in your config:
 
 ```elixir
 # config/config.exs
 config :pyre, config: MyApp.Pyre.Config
-config :pyre_web, config: MyApp.Pyre.Config
+config :pyre, web_config: MyApp.Pyre.Config
 ```
 
 Any callback not overridden returns `:ok` by default. Exceptions in callbacks
@@ -709,15 +708,14 @@ defmodule MyApp.Pyre.Config do
 end
 ```
 
-Then register the module in your config. Both libraries can share one module
-since the callback names don't overlap (`after_*` for Pyre, `authorize_*` for
-PyreWeb). Each library reads its own application environment, so both entries
-are required:
+Then register the module in your config. Both config behaviours can share one
+module since the callback names don't overlap (`after_*` for Pyre, `authorize_*`
+for PyreWeb):
 
 ```elixir
 # config/config.exs
 config :pyre, config: MyApp.Pyre.Config
-config :pyre_web, config: MyApp.Pyre.Config
+config :pyre, web_config: MyApp.Pyre.Config
 ```
 
 The 6 authorization hooks and their arguments:

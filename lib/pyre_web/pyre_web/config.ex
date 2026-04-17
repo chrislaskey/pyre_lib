@@ -8,7 +8,7 @@ defmodule PyreWeb.Config do
   2. Overriding any callbacks they need
   3. Configuring it in `config.exs`:
 
-         config :pyre_web, config: MyApp.PyreWebConfig
+         config :pyre, web_config: MyApp.PyreWebConfig
 
   If no config module is set, `PyreWeb.Config` itself provides the default
   implementations for all callbacks (permit all / no-op).
@@ -252,11 +252,11 @@ defmodule PyreWeb.Config do
   @doc """
   Returns the configured PyreWeb config module.
 
-  Reads `config :pyre_web, config: MyApp.PyreWebConfig` from the application environment.
+  Reads `config :pyre, web_config: MyApp.PyreWebConfig` from the application environment.
   Falls back to `PyreWeb.Config` (default implementations) if none is configured.
   """
   def get_module do
-    Application.get_env(:pyre_web, :config) || __MODULE__
+    Application.get_env(:pyre, :web_config) || __MODULE__
   end
 
   @doc """

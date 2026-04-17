@@ -6,7 +6,7 @@ defmodule PyreWeb.WebhookControllerTest do
   @webhook_secret "test_webhook_secret_123"
 
   setup do
-    previous_config = Application.get_env(:pyre_web, :config)
+    previous_config = Application.get_env(:pyre, :web_config)
     previous_github_apps = Application.get_env(:pyre, :github_apps)
 
     Application.put_env(:pyre, :github_apps, [
@@ -19,7 +19,7 @@ defmodule PyreWeb.WebhookControllerTest do
     ])
 
     on_exit(fn ->
-      Application.put_env(:pyre_web, :config, previous_config)
+      Application.put_env(:pyre, :web_config, previous_config)
 
       if previous_github_apps do
         Application.put_env(:pyre, :github_apps, previous_github_apps)
@@ -121,7 +121,7 @@ defmodule PyreWeb.WebhookControllerTest do
 
   describe "authorization" do
     test "rejects when authorize_webhook returns error", %{conn: conn} do
-      Application.put_env(:pyre_web, :config, PyreWeb.WebhookControllerTest.DenyWebhooks)
+      Application.put_env(:pyre, :web_config, PyreWeb.WebhookControllerTest.DenyWebhooks)
 
       payload = Jason.encode!(%{"action" => "created"})
       signature = compute_signature(payload)

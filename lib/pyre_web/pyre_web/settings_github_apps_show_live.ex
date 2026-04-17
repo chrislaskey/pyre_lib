@@ -58,7 +58,7 @@ defmodule PyreWeb.SettingsGithubAppsShowLive do
   end
 
   def base_url(uri) do
-    case Application.get_env(:pyre_web, :public_url) do
+    case Application.get_env(:pyre, :public_url) do
       nil ->
         parsed = URI.parse(uri)
 
