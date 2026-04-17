@@ -4,11 +4,11 @@ defmodule PyreWeb.ConfigTest do
   import ExUnit.CaptureLog
 
   setup do
-    previous = Application.get_env(:pyre, :web_config)
+    previous = Application.get_env(:pyre, :config)
     previous_apps = Application.get_env(:pyre, :github_apps)
 
     on_exit(fn ->
-      Application.put_env(:pyre, :web_config, previous)
+      Application.put_env(:pyre, :config, previous)
 
       if previous_apps do
         Application.put_env(:pyre, :github_apps, previous_apps)
@@ -23,169 +23,169 @@ defmodule PyreWeb.ConfigTest do
 
   describe "authorize/2 with defaults" do
     test "returns :ok for authorize_socket_connect" do
-      Application.delete_env(:pyre, :web_config)
-      assert :ok = PyreWeb.Config.authorize(:authorize_socket_connect, [%{}, %{}])
+      Application.delete_env(:pyre, :config)
+      assert :ok = Pyre.Config.authorize(:authorize_socket_connect, [%{}, %{}])
     end
 
     test "returns :ok for authorize_channel_join" do
-      Application.delete_env(:pyre, :web_config)
-      assert :ok = PyreWeb.Config.authorize(:authorize_channel_join, ["pyre:connections", %{}])
+      Application.delete_env(:pyre, :config)
+      assert :ok = Pyre.Config.authorize(:authorize_channel_join, ["pyre:connections", %{}])
     end
 
     test "returns :ok for authorize_run_create" do
-      Application.delete_env(:pyre, :web_config)
-      assert :ok = PyreWeb.Config.authorize(:authorize_run_create, [%{}, %{}])
+      Application.delete_env(:pyre, :config)
+      assert :ok = Pyre.Config.authorize(:authorize_run_create, [%{}, %{}])
     end
 
     test "returns :ok for authorize_run_control" do
-      Application.delete_env(:pyre, :web_config)
-      assert :ok = PyreWeb.Config.authorize(:authorize_run_control, [%{}, %{}])
+      Application.delete_env(:pyre, :config)
+      assert :ok = Pyre.Config.authorize(:authorize_run_control, [%{}, %{}])
     end
 
     test "returns :ok for authorize_remote_action" do
-      Application.delete_env(:pyre, :web_config)
-      assert :ok = PyreWeb.Config.authorize(:authorize_remote_action, [%{}, %{}])
+      Application.delete_env(:pyre, :config)
+      assert :ok = Pyre.Config.authorize(:authorize_remote_action, [%{}, %{}])
     end
 
     test "returns :ok for authorize_webhook" do
-      Application.delete_env(:pyre, :web_config)
-      assert :ok = PyreWeb.Config.authorize(:authorize_webhook, ["issue_comment", %{}])
+      Application.delete_env(:pyre, :config)
+      assert :ok = Pyre.Config.authorize(:authorize_webhook, ["issue_comment", %{}])
     end
   end
 
   describe "call/2 with defaults" do
     test "update_github_app returns :ok" do
-      Application.delete_env(:pyre, :web_config)
-      assert :ok = PyreWeb.Config.call(:update_github_app, [%{app_id: "123"}])
+      Application.delete_env(:pyre, :config)
+      assert :ok = Pyre.Config.call(:update_github_app, [%{app_id: "123"}])
     end
 
     test "list_github_apps returns empty list" do
-      Application.delete_env(:pyre, :web_config)
-      assert [] == PyreWeb.Config.call(:list_github_apps, [])
+      Application.delete_env(:pyre, :config)
+      assert [] == Pyre.Config.call(:list_github_apps, [])
     end
   end
 
   describe "call/2 with custom module" do
     test "dispatches update_github_app to configured module" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.WithGitHub)
-      assert :ok = PyreWeb.Config.call(:update_github_app, [%{app_id: "123"}])
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.WithGitHub)
+      assert :ok = Pyre.Config.call(:update_github_app, [%{app_id: "123"}])
     end
 
     test "dispatches list_github_apps to configured module" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.WithGitHub)
-      result = PyreWeb.Config.call(:list_github_apps, [])
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.WithGitHub)
+      result = Pyre.Config.call(:list_github_apps, [])
       assert [%{app_id: "test-app"}] = result
     end
 
     test "rescues exception and returns nil" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.DataCrasher)
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.DataCrasher)
 
       log =
         capture_log(fn ->
-          assert nil == PyreWeb.Config.call(:list_github_apps, [])
+          assert nil == Pyre.Config.call(:list_github_apps, [])
         end)
 
-      assert log =~ "PyreWeb.Config hook list_github_apps raised"
+      assert log =~ "Pyre.Config hook list_github_apps raised"
     end
   end
 
   describe "authorize/2 with custom module" do
     test "dispatches to configured module" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.AllowAll)
-      assert :ok = PyreWeb.Config.authorize(:authorize_socket_connect, [%{}, %{}])
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.AllowAll)
+      assert :ok = Pyre.Config.authorize(:authorize_socket_connect, [%{}, %{}])
     end
 
     test "propagates {:error, reason} from custom module" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.DenyAll)
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.DenyAll)
 
       assert {:error, :unauthorized} =
-               PyreWeb.Config.authorize(:authorize_socket_connect, [%{}, %{}])
+               Pyre.Config.authorize(:authorize_socket_connect, [%{}, %{}])
     end
 
     test "propagates {:error, reason} for each hook" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.DenyAll)
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.DenyAll)
 
       assert {:error, :unauthorized} =
-               PyreWeb.Config.authorize(:authorize_channel_join, ["topic", %{}])
+               Pyre.Config.authorize(:authorize_channel_join, ["topic", %{}])
 
       assert {:error, :unauthorized} =
-               PyreWeb.Config.authorize(:authorize_run_create, [%{}, %{}])
+               Pyre.Config.authorize(:authorize_run_create, [%{}, %{}])
 
       assert {:error, :unauthorized} =
-               PyreWeb.Config.authorize(:authorize_run_control, [%{}, %{}])
+               Pyre.Config.authorize(:authorize_run_control, [%{}, %{}])
 
       assert {:error, :unauthorized} =
-               PyreWeb.Config.authorize(:authorize_remote_action, [%{}, %{}])
+               Pyre.Config.authorize(:authorize_remote_action, [%{}, %{}])
 
       assert {:error, :unauthorized} =
-               PyreWeb.Config.authorize(:authorize_webhook, ["event", %{}])
+               Pyre.Config.authorize(:authorize_webhook, ["event", %{}])
     end
   end
 
   describe "authorize/2 crash recovery" do
     test "rescues exception and returns :ok" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.Crasher)
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.Crasher)
 
       log =
         capture_log(fn ->
-          assert :ok = PyreWeb.Config.authorize(:authorize_socket_connect, [%{}, %{}])
+          assert :ok = Pyre.Config.authorize(:authorize_socket_connect, [%{}, %{}])
         end)
 
-      assert log =~ "PyreWeb.Config hook authorize_socket_connect raised"
+      assert log =~ "Pyre.Config hook authorize_socket_connect raised"
       assert log =~ "boom"
     end
   end
 
   describe "call/2 sidebar_footer" do
     test "returns empty rendered by default" do
-      Application.delete_env(:pyre, :web_config)
-      result = PyreWeb.Config.call(:sidebar_footer, [%{}])
+      Application.delete_env(:pyre, :config)
+      result = Pyre.Config.call(:sidebar_footer, [%{}])
       assert %Phoenix.LiveView.Rendered{} = result
     end
 
     test "dispatches to configured module" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.WithSidebarFooter)
-      result = PyreWeb.Config.call(:sidebar_footer, [%{}])
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.WithSidebarFooter)
+      result = Pyre.Config.call(:sidebar_footer, [%{}])
       assert %Phoenix.LiveView.Rendered{} = result
       assert result.static |> Enum.join() =~ "Custom Footer"
     end
 
     test "returns nil on crash" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.DataCrasher)
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.DataCrasher)
 
       log =
         capture_log(fn ->
-          assert nil == PyreWeb.Config.call(:sidebar_footer, [%{}])
+          assert nil == Pyre.Config.call(:sidebar_footer, [%{}])
         end)
 
-      assert log =~ "PyreWeb.Config hook sidebar_footer raised"
+      assert log =~ "Pyre.Config hook sidebar_footer raised"
     end
   end
 
   describe "list_github_apps" do
     test "returns empty list when no config set" do
-      Application.delete_env(:pyre, :web_config)
+      Application.delete_env(:pyre, :config)
       Application.delete_env(:pyre, :github_apps)
-      assert [] == PyreWeb.Config.call(:list_github_apps, [])
+      assert [] == Pyre.Config.call(:list_github_apps, [])
     end
 
     test "returns normalized maps from keyword list config" do
-      Application.delete_env(:pyre, :web_config)
+      Application.delete_env(:pyre, :config)
 
       Application.put_env(:pyre, :github_apps, [
         [app_id: "111", webhook_secret: "sec1", bot_slug: "bot1"],
         [app_id: "222", webhook_secret: "sec2", bot_slug: "bot2"]
       ])
 
-      result = PyreWeb.Config.call(:list_github_apps, [])
+      result = Pyre.Config.call(:list_github_apps, [])
       assert length(result) == 2
       assert Enum.at(result, 0) == %{app_id: "111", webhook_secret: "sec1", bot_slug: "bot1"}
       assert Enum.at(result, 1) == %{app_id: "222", webhook_secret: "sec2", bot_slug: "bot2"}
     end
 
     test "dispatches list_github_apps to custom module" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.WithGitHub)
-      result = PyreWeb.Config.call(:list_github_apps, [])
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.WithGitHub)
+      result = Pyre.Config.call(:list_github_apps, [])
       assert [%{app_id: "test-app"}] = result
     end
   end
@@ -215,25 +215,25 @@ defmodule PyreWeb.ConfigTest do
   end
 
   describe "get_module/0" do
-    test "returns PyreWeb.Config when no config set" do
-      Application.delete_env(:pyre, :web_config)
-      assert PyreWeb.Config.get_module() == PyreWeb.Config
+    test "returns Pyre.Config when no config set" do
+      Application.delete_env(:pyre, :config)
+      assert Pyre.Config.get_module() == Pyre.Config
     end
 
     test "returns configured module" do
-      Application.put_env(:pyre, :web_config, PyreWeb.ConfigTest.AllowAll)
-      assert PyreWeb.Config.get_module() == PyreWeb.ConfigTest.AllowAll
+      Application.put_env(:pyre, :config, PyreWeb.ConfigTest.AllowAll)
+      assert Pyre.Config.get_module() == PyreWeb.ConfigTest.AllowAll
     end
   end
 
   # -- Test helper modules --
 
   defmodule AllowAll do
-    use PyreWeb.Config
+    use Pyre.Config
   end
 
   defmodule DenyAll do
-    use PyreWeb.Config
+    use Pyre.Config
 
     @impl true
     def authorize_socket_connect(_params, _connect_info), do: {:error, :unauthorized}
@@ -250,7 +250,7 @@ defmodule PyreWeb.ConfigTest do
   end
 
   defmodule WithGitHub do
-    use PyreWeb.Config
+    use Pyre.Config
 
     @impl true
     def update_github_app(_credentials), do: :ok
@@ -260,16 +260,14 @@ defmodule PyreWeb.ConfigTest do
   end
 
   defmodule Crasher do
-    use PyreWeb.Config
+    use Pyre.Config
 
     @impl true
     def authorize_socket_connect(_params, _connect_info), do: raise("boom")
   end
 
   defmodule WithSidebarFooter do
-    use PyreWeb.Config
-
-    import Phoenix.Component, only: [sigil_H: 2]
+    use Pyre.Config
 
     @impl true
     def sidebar_footer(assigns) do
@@ -280,7 +278,7 @@ defmodule PyreWeb.ConfigTest do
   end
 
   defmodule DataCrasher do
-    use PyreWeb.Config
+    use Pyre.Config
 
     @impl true
     def list_github_apps, do: raise("data boom")

@@ -130,7 +130,7 @@ defmodule PyreWeb.RunNewLive do
         feature: feature
       }
 
-      case PyreWeb.Config.authorize(:authorize_run_create, [run_params, socket]) do
+      case Pyre.Config.authorize(:authorize_run_create, [run_params, socket]) do
         {:error, reason} ->
           {:noreply, put_flash(socket, :error, "Not authorized: #{inspect(reason)}")}
 
@@ -170,7 +170,7 @@ defmodule PyreWeb.RunNewLive do
       feature: feature
     ]
 
-    case PyreWeb.Config.call(:run_submit, [desc, opts]) do
+    case Pyre.Config.call(:run_submit, [desc, opts]) do
       {:ok, result} ->
         if redirect_to = Keyword.get(result, :redirect_to) do
           {:noreply, push_navigate(socket, to: pyre_path(socket, redirect_to))}

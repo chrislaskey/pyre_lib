@@ -85,7 +85,7 @@ defmodule PyreWeb.SettingsGithubAppsShowLive do
   end
 
   defp github_app_full_config do
-    case PyreWeb.Config.call(:list_github_apps, []) do
+    case Pyre.Config.call(:list_github_apps, []) do
       [first | _] -> first
       _ -> %{}
     end

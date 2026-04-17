@@ -3,7 +3,7 @@ defmodule PyreWeb.GitHubCallbackController do
   Handles the redirect from GitHub after App manifest registration.
 
   Exchanges the temporary code for App credentials and stores them
-  via the `PyreWeb.Config.update_github_app/1` callback.
+  via the `Pyre.Config.update_github_app/1` callback.
   """
 
   use Phoenix.Controller, formats: [:html]
@@ -16,7 +16,7 @@ defmodule PyreWeb.GitHubCallbackController do
         Logger.info("GitHub App created successfully. App ID: #{credentials.app_id}")
 
         # Store via Config callback (no-op by default, consuming apps persist)
-        PyreWeb.Config.call(:update_github_app, [credentials])
+        Pyre.Config.call(:update_github_app, [credentials])
 
         conn
         |> put_resp_content_type("text/html")

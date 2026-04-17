@@ -36,7 +36,7 @@ defmodule PyreWeb.Socket do
 
   @impl true
   def connect(params, socket, connect_info) do
-    case PyreWeb.Config.authorize(:authorize_socket_connect, [params, connect_info]) do
+    case Pyre.Config.authorize(:authorize_socket_connect, [params, connect_info]) do
       :ok ->
         connection_id = params["connection_id"]
 

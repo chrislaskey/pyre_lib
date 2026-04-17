@@ -16,7 +16,7 @@ defmodule PyreWeb.RunShowLive do
       end
     end
 
-    case PyreWeb.Config.call(:get_run, [id]) do
+    case Pyre.Config.call(:get_run, [id]) do
       {:ok, run} ->
         socket =
           socket
@@ -112,7 +112,7 @@ defmodule PyreWeb.RunShowLive do
     action = %{type: :stop, run_id: socket.assigns.run_id}
 
     with :ok <- authorize_control(action, socket) do
-      PyreWeb.Config.call(:run_stop, [socket.assigns.run_id])
+      Pyre.Config.call(:run_stop, [socket.assigns.run_id])
       {:noreply, assign(socket, confirm_stop: false)}
     end
   end
@@ -129,7 +129,7 @@ defmodule PyreWeb.RunShowLive do
     # data when a queued run starts). Letting get_run be the single
     # source of truth keeps pyre_web agnostic about host-app statuses.
     socket =
-      case PyreWeb.Config.call(:get_run, [socket.assigns.run_id]) do
+      case Pyre.Config.call(:get_run, [socket.assigns.run_id]) do
         {:ok, run} ->
           socket
           |> assign_from_run(run)
@@ -479,7 +479,7 @@ defmodule PyreWeb.RunShowLive do
   defp backend_supports_replies?(_), do: false
 
   defp authorize_control(action, socket) do
-    case PyreWeb.Config.authorize(:authorize_run_control, [action, socket]) do
+    case Pyre.Config.authorize(:authorize_run_control, [action, socket]) do
       :ok -> :ok
       {:error, _} -> {:noreply, socket}
     end

@@ -42,7 +42,7 @@ defmodule PyreWeb.HomeLive do
       ]
     }
 
-    case PyreWeb.Config.authorize(:authorize_remote_action, [action, socket]) do
+    case Pyre.Config.authorize(:authorize_remote_action, [action, socket]) do
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Not authorized: #{inspect(reason)}")}
 

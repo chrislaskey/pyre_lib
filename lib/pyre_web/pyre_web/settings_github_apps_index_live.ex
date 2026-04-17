@@ -6,7 +6,7 @@ defmodule PyreWeb.SettingsGithubAppsIndexLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    all_apps = PyreWeb.Config.call(:list_github_apps, []) || []
+    all_apps = Pyre.Config.call(:list_github_apps, []) || []
 
     apps =
       Enum.map(all_apps, fn config ->

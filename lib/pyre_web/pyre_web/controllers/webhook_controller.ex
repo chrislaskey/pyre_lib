@@ -17,7 +17,7 @@ defmodule PyreWeb.WebhookController do
     event = get_req_header(conn, "x-github-event") |> List.first()
 
     with :ok <- verify_signature(conn, raw_body),
-         :ok <- PyreWeb.Config.authorize(:authorize_webhook, [event, params]) do
+         :ok <- Pyre.Config.authorize(:authorize_webhook, [event, params]) do
       handle_event(event, params["action"], params)
       json(conn, %{status: "accepted"})
     else
@@ -171,6 +171,6 @@ defmodule PyreWeb.WebhookController do
   # --- Config helpers ---
 
   defp list_github_apps do
-    PyreWeb.Config.call(:list_github_apps, []) || []
+    Pyre.Config.call(:list_github_apps, []) || []
   end
 end

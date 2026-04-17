@@ -182,7 +182,7 @@ defmodule PyreWeb.Components.Layouts do
       <div class="w-full flex-1">
         <.nav_links current_page={@current_page} prefix={@prefix} />
       </div>
-      {PyreWeb.Config.call(:sidebar_footer, [assigns])}
+      {Pyre.Config.call(:sidebar_footer, [assigns])}
     </nav>
     """
   end
@@ -245,7 +245,7 @@ defmodule PyreWeb.Components.Layouts do
       </div>
       <div class="flex-1 overflow-y-auto py-6 px-3 bg-base-200 flex-1 border-t border-base-300">
         <.nav_links current_page={@current_page} prefix={@prefix} />
-        {PyreWeb.Config.call(:sidebar_footer, [assigns])}
+        {Pyre.Config.call(:sidebar_footer, [assigns])}
       </div>
     </div>
     """
@@ -359,7 +359,7 @@ defmodule PyreWeb.Components.Layouts do
           Settings
         </.link>
       </li>
-      {PyreWeb.Config.call(:additional_nav_links, [assigns])}
+      {Pyre.Config.call(:additional_nav_links, [assigns])}
     </ul>
     """
   end

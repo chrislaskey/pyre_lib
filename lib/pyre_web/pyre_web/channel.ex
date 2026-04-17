@@ -16,14 +16,14 @@ defmodule PyreWeb.Channel do
 
   @impl true
   def join("pyre:hello" = topic, _params, socket) do
-    case PyreWeb.Config.authorize(:authorize_channel_join, [topic, socket]) do
+    case Pyre.Config.authorize(:authorize_channel_join, [topic, socket]) do
       :ok -> {:ok, %{message: "hello world"}, socket}
       {:error, reason} -> {:error, %{reason: reason}}
     end
   end
 
   def join("pyre:connections" = topic, params, socket) do
-    case PyreWeb.Config.authorize(:authorize_channel_join, [topic, socket]) do
+    case Pyre.Config.authorize(:authorize_channel_join, [topic, socket]) do
       {:error, reason} ->
         {:error, %{reason: reason}}
 

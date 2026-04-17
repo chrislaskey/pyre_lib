@@ -505,27 +505,25 @@ browser.
 
 #### Lifecycle hooks
 
-Pyre and PyreWeb dispatches lifecycle events to a configurable callback module. The default
-behaviour can be overwritten by creating a custom module and defining callback functions.
-
-You can use the same module for both `Pyre.Config` and `PyreWeb.Config`:
+Pyre dispatches lifecycle events and authorization checks to a configurable
+callback module. Create a module that `use Pyre.Config` and override the
+callbacks you need:
 
 ```elixir
 defmodule MyApp.Pyre.Config do
   use Pyre.Config
-  use PyreWeb.Config
 
-  # Pyre Callbacks
+  # Lifecycle callbacks
 
-  @impl Pyre.Config
+  @impl true
   def after_flow_complete(%Pyre.Events.FlowCompleted{} = event) do
     MyApp.Telemetry.emit(:pyre_flow_complete, %{elapsed_ms: event.elapsed_ms})
     :ok
   end
 
-  # PyreWeb Callbacks
+  # Authorization callbacks
 
-  @impl PyreWeb.Config
+  @impl true
   def authorize_socket_connect(params, _connect_info) do
     case Map.get(params, "token") do
       nil -> {:error, :missing_token}
@@ -540,7 +538,6 @@ Then register it in your config:
 ```elixir
 # config/config.exs
 config :pyre, config: MyApp.Pyre.Config
-config :pyre, web_config: MyApp.Pyre.Config
 ```
 
 Any callback not overridden returns `:ok` by default. Exceptions in callbacks
@@ -673,27 +670,26 @@ pyre_web "/pyre",
 
 ### Authorization Hooks
 
-PyreWeb provides 6 authorization hooks that let your app gate WebSocket
+`Pyre.Config` provides 6 authorization hooks that let your app gate WebSocket
 connections, channel joins, run creation, run control, remote action
-dispatch, and webhook processing. Create a module that `use PyreWeb.Config`
-and override the callbacks you need:
+dispatch, and webhook processing. Override the callbacks you need in your
+config module:
 
 ```elixir
 defmodule MyApp.Pyre.Config do
   use Pyre.Config
-  use PyreWeb.Config
 
-  # --- Pyre lifecycle hooks (optional) ---
+  # --- Lifecycle hooks (optional) ---
 
-  @impl Pyre.Config
+  @impl true
   def after_flow_complete(%Pyre.Events.FlowCompleted{} = event) do
     MyApp.Telemetry.emit(:pyre_flow_complete, %{elapsed_ms: event.elapsed_ms})
     :ok
   end
 
-  # --- PyreWeb authorization hooks ---
+  # --- Authorization hooks ---
 
-  @impl PyreWeb.Config
+  @impl true
   def authorize_socket_connect(params, _connect_info) do
     case Map.get(params, "token") do
       nil -> {:error, :missing_token}
@@ -701,21 +697,18 @@ defmodule MyApp.Pyre.Config do
     end
   end
 
-  @impl PyreWeb.Config
+  @impl true
   def authorize_run_create(_run_params, socket) do
     if socket.assigns[:current_user], do: :ok, else: {:error, :unauthenticated}
   end
 end
 ```
 
-Then register the module in your config. Both config behaviours can share one
-module since the callback names don't overlap (`after_*` for Pyre, `authorize_*`
-for PyreWeb):
+Then register the module in your config:
 
 ```elixir
 # config/config.exs
 config :pyre, config: MyApp.Pyre.Config
-config :pyre, web_config: MyApp.Pyre.Config
 ```
 
 The 6 authorization hooks and their arguments:
@@ -729,7 +722,7 @@ The 6 authorization hooks and their arguments:
 | `authorize_remote_action` | `(action, socket)` | Home page action dispatch |
 | `authorize_webhook` | `(event, payload)` | `PyreWeb.WebhookController` |
 
-PyreWeb.Config also provides persistence callbacks for GitHub App credentials:
+`Pyre.Config` also provides persistence callbacks for GitHub App credentials:
 
 | Callback | Arguments | Description |
 |----------|-----------|-------------|
@@ -753,7 +746,7 @@ The `assigns` map includes `:current_page`, `:prefix`, and `:uri` from the
 sidebar component. The default implementation renders nothing.
 
 ```elixir
-@impl PyreWeb.Config
+@impl Pyre.Config
 def sidebar_footer(assigns) do
   import Phoenix.Component, only: [sigil_H: 2]
 
