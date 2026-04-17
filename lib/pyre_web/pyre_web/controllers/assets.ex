@@ -11,7 +11,7 @@ defmodule PyreWeb.Assets do
     end
 
   # Embed PyreWeb JS at compile time
-  js_path = Path.join(__DIR__, "../../../dist/js/app.js")
+  js_path = Path.join(__DIR__, "../../../../dist/js/app.js")
   @external_resource js_path
 
   @js """
