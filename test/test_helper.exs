@@ -1,4 +1,4 @@
-Application.put_env(:pyre_web, PyreWeb.Test.Endpoint,
+Application.put_env(:pyre, PyreWeb.Test.Endpoint,
   url: [host: "localhost", port: 4000],
   secret_key_base: String.duplicate("a", 64),
   live_view: [signing_salt: "pyre_web_test"],
@@ -24,7 +24,7 @@ defmodule PyreWeb.Test.Router do
 end
 
 defmodule PyreWeb.Test.Endpoint do
-  use Phoenix.Endpoint, otp_app: :pyre_web
+  use Phoenix.Endpoint, otp_app: :pyre
 
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],

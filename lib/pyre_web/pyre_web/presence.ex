@@ -16,7 +16,7 @@ defmodule PyreWeb.Presence do
       ]
   """
   use Phoenix.Presence,
-    otp_app: :pyre_web,
+    otp_app: :pyre,
     pubsub_server: Phoenix.PubSub
 
   defoverridable child_spec: 1
@@ -28,7 +28,7 @@ defmodule PyreWeb.Presence do
     pubsub = Application.get_env(:pyre, :pubsub)
 
     if pubsub do
-      Application.put_env(:pyre_web, __MODULE__, pubsub_server: pubsub)
+      Application.put_env(:pyre, __MODULE__, pubsub_server: pubsub)
     end
 
     super(opts)
