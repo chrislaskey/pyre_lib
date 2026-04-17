@@ -47,25 +47,26 @@ defmodule PyreWeb.Router do
         import Phoenix.LiveView.Router, only: [live: 4, live_session: 3]
 
         live_session session_name, session_opts do
-          get "/js-:md5", PyreWeb.Assets, :js, as: :pyre_web_asset
+          get("/js-:md5", PyreWeb.Assets, :js, as: :pyre_web_asset)
 
-          live "/", PyreWeb.HomeLive, :index, route_opts
+          live("/", PyreWeb.HomeLive, :index, route_opts)
 
-          live "/connected-apps", PyreWeb.ConnectedAppsListLive, :index, route_opts
+          live("/connected-apps", PyreWeb.ConnectedAppsListLive, :index, route_opts)
 
-          live "/runs", PyreWeb.RunListLive, :index, route_opts
-          live "/runs/new", PyreWeb.RunNewLive, :new, route_opts
-          live "/runs/:id", PyreWeb.RunShowLive, :show, route_opts
+          live("/runs", PyreWeb.RunListLive, :index, route_opts)
+          live("/runs/new", PyreWeb.RunNewLive, :new, route_opts)
+          live("/runs/:id", PyreWeb.RunShowLive, :show, route_opts)
 
-          live "/settings", PyreWeb.SettingsLive, :index, route_opts
-          live "/settings/github-apps", PyreWeb.SettingsGithubAppsIndexLive, :index, route_opts
-          live "/settings/github-apps/new", PyreWeb.SettingsGithubAppsShowLive, :new, route_opts
+          live("/settings", PyreWeb.SettingsLive, :index, route_opts)
+          live("/settings/github-apps", PyreWeb.SettingsGithubAppsIndexLive, :index, route_opts)
+          live("/settings/github-apps/new", PyreWeb.SettingsGithubAppsShowLive, :new, route_opts)
         end
 
-        get "/github/callback", PyreWeb.GitHubCallbackController, :callback,
+        get("/github/callback", PyreWeb.GitHubCallbackController, :callback,
           as: :pyre_github_callback
+        )
 
-        post "/webhooks/github", PyreWeb.WebhookController, :github, as: :pyre_webhook
+        post("/webhooks/github", PyreWeb.WebhookController, :github, as: :pyre_webhook)
       end
 
       unless Module.get_attribute(__MODULE__, :pyre_web_prefix) do

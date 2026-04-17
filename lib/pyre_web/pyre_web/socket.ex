@@ -32,7 +32,7 @@ defmodule PyreWeb.Socket do
 
   require Logger
 
-  channel "pyre:*", PyreWeb.Channel
+  channel("pyre:*", PyreWeb.Channel)
 
   @impl true
   def connect(params, socket, connect_info) do

@@ -13,11 +13,11 @@ defmodule PyreWeb.Test.Router do
   import PyreWeb.Router
 
   pipeline :browser do
-    plug :fetch_session
+    plug(:fetch_session)
   end
 
   scope "/" do
-    pipe_through :browser
+    pipe_through(:browser)
     pyre_web("/pyre")
   end
 end
@@ -25,18 +25,20 @@ end
 defmodule PyreWeb.Test.Endpoint do
   use Phoenix.Endpoint, otp_app: :pyre_web
 
-  plug Plug.Parsers,
+  plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Jason,
     body_reader: {PyreWeb.WebhookPlug, :read_body, []}
+  )
 
-  plug Plug.Session,
+  plug(Plug.Session,
     store: :cookie,
     key: "_pyre_web_key",
     signing_salt: "pyre_web_test"
+  )
 
-  plug PyreWeb.Test.Router
+  plug(PyreWeb.Test.Router)
 end
 
 # Pyre application auto-starts Registry, DynamicSupervisor, and

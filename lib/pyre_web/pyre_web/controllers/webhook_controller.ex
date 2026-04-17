@@ -8,7 +8,7 @@ defmodule PyreWeb.WebhookController do
 
   use Phoenix.Controller, formats: [:json]
 
-  plug :skip_csrf_protection
+  plug(:skip_csrf_protection)
 
   require Logger
 

@@ -21,11 +21,11 @@ defmodule PyreWeb.Components.Layouts do
     "sunset"
   ]
 
-  attr :current_page, :atom, required: true
-  attr :prefix, :string, required: true
-  attr :uri, :string, default: ""
-  attr :breadcrumbs, :list, default: []
-  slot :inner_block, required: true
+  attr(:current_page, :atom, required: true)
+  attr(:prefix, :string, required: true)
+  attr(:uri, :string, default: "")
+  attr(:breadcrumbs, :list, default: [])
+  slot(:inner_block, required: true)
 
   def page_layout(assigns) do
     ~H"""
@@ -49,8 +49,8 @@ defmodule PyreWeb.Components.Layouts do
   Each item is a map with `:label` and an optional `:path`.
   Items with a `:path` render as navigate links; the last item (no path) renders as plain text.
   """
-  attr :items, :list, required: true
-  attr :prefix, :string, required: true
+  attr(:items, :list, required: true)
+  attr(:prefix, :string, required: true)
 
   def breadcrumbs(assigns) do
     home = if assigns[:prefix] == "", do: "/", else: assigns[:prefix]
@@ -87,9 +87,9 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  attr :current_page, :atom, required: true
-  attr :prefix, :string, required: true
-  attr :uri, :string, default: ""
+  attr(:current_page, :atom, required: true)
+  attr(:prefix, :string, required: true)
+  attr(:uri, :string, default: "")
 
   def page_header(assigns) do
     ~H"""
@@ -148,7 +148,7 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  attr :prefix, :string, required: true
+  attr(:prefix, :string, required: true)
 
   def page_header_logo(assigns) do
     ~H"""
@@ -158,7 +158,7 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  slot :inner_block, required: true
+  slot(:inner_block, required: true)
 
   def page_header_container(assigns) do
     ~H"""
@@ -168,9 +168,9 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  attr :current_page, :atom, required: true
-  attr :prefix, :string, required: true
-  attr :uri, :string, required: true
+  attr(:current_page, :atom, required: true)
+  attr(:prefix, :string, required: true)
+  attr(:uri, :string, required: true)
 
   def sidebar(assigns) do
     ~H"""
@@ -187,7 +187,7 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  attr :uri, :string, required: true
+  attr(:uri, :string, required: true)
 
   def mobile_menu_button(assigns) do
     ~H"""
@@ -215,9 +215,9 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  attr :current_page, :atom, required: true
-  attr :prefix, :string, required: true
-  attr :uri, :string, required: true
+  attr(:current_page, :atom, required: true)
+  attr(:prefix, :string, required: true)
+  attr(:uri, :string, required: true)
 
   def mobile_menu(assigns) do
     ~H"""
@@ -251,8 +251,8 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  attr :current_page, :atom, required: true
-  attr :prefix, :string, required: true
+  attr(:current_page, :atom, required: true)
+  attr(:prefix, :string, required: true)
 
   def nav_links(assigns) do
     ~H"""
@@ -397,7 +397,7 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  attr :themes, :list, default: @themes
+  attr(:themes, :list, default: @themes)
 
   def theme_selector(assigns) do
     ~H"""
@@ -444,7 +444,7 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  slot :inner_block, required: true
+  slot(:inner_block, required: true)
 
   def h1(assigns) do
     ~H"""
@@ -454,7 +454,7 @@ defmodule PyreWeb.Components.Layouts do
     """
   end
 
-  slot :inner_block, required: true
+  slot(:inner_block, required: true)
 
   def h2(assigns) do
     ~H"""

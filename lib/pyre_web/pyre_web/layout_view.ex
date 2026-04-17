@@ -2,7 +2,7 @@ defmodule PyreWeb.LayoutView do
   @moduledoc false
   use PyreWeb.Web, :html
 
-  embed_templates "layouts/*"
+  embed_templates("layouts/*")
 
   def render("root.html", assigns), do: root(assigns)
 
