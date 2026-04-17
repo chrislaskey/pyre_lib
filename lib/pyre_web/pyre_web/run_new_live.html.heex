@@ -1,0 +1,190 @@
+<.page_layout
+  current_page={:new_run}
+  prefix={pyre_path(@socket, "")}
+  uri={@uri}
+  breadcrumbs={[
+    %{label: "Runs", path: pyre_path(@socket, "/runs")},
+    %{label: "New Run"}
+  ]}
+>
+  <div class="mb-6">
+    <.h1>New Run</.h1>
+  </div>
+
+  <.flash_group flash={@flash} />
+
+  <form phx-submit="submit" phx-change="validate" class="mb-6">
+    <div class="mb-8 p-6 border border-base-300 bg-primary-200/80 rounded-xl">
+      <div class="mb-8">
+        <label class="label mb-2">
+          <span class="label-text">Workflow</span>
+        </label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <.workflow_card
+            :for={entry <- @workflows}
+            value={entry.name}
+            label={entry.label}
+            description={entry.description}
+            badge={if entry.mode == :interactive, do: "Interactive", else: "Background"}
+            selected={@workflow == entry.name}
+          />
+        </div>
+      </div>
+
+      <div>
+        <div>
+          <label class="label mb-2">
+            <span class="label-text">Prompt</span>
+          </label>
+          <textarea
+            name="run[feature_description]"
+            class="textarea textarea-bordered w-full h-32 text-sm"
+            placeholder="Build a products listing page with search and pagination..."
+          >{Phoenix.HTML.Form.input_value(@form, :feature_description)}</textarea>
+        </div>
+
+        <div id="attachment-upload" phx-hook="PasteUpload" class="mt-3 mb-6">
+          <.live_file_input upload={@uploads.attachments} class="hidden" />
+
+          <div
+            :for={entry <- @uploads.attachments.entries}
+            class="flex items-center gap-3 p-3 border border-base-300 rounded-lg bg-base-200/50 mb-2"
+          >
+            <.live_img_preview
+              :if={String.starts_with?(entry.client_type, "image/")}
+              entry={entry}
+              class="max-h-24 rounded border border-base-300"
+            />
+            <div
+              :if={not String.starts_with?(entry.client_type, "image/")}
+              class="flex items-center justify-center w-10 h-10 rounded border border-base-300 bg-base-200 text-base-content/40 text-xs font-mono shrink-0"
+            >
+              {entry.client_name |> Path.extname() |> String.trim_leading(".")}
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-sm text-base-content/70">{entry.client_name}</span>
+              <button
+                type="button"
+                phx-click="cancel-upload"
+                phx-value-ref={entry.ref}
+                class="btn btn-ghost btn-xs w-fit"
+              >
+                Remove
+              </button>
+            </div>
+            <p
+              :for={err <- upload_errors(@uploads.attachments, entry)}
+              class="text-error text-sm"
+            >
+              {upload_error_to_string(err)}
+            </p>
+          </div>
+
+          <div
+            phx-drop-target={@uploads.attachments.ref}
+            class="border-1 border-base-300 bg-base-200 rounded-lg p-4 text-center text-sm text-base-content/50"
+          >
+            Paste, or drag and drop a file, or
+            <label class="link cursor-pointer" for={@uploads.attachments.ref}>
+              browse files
+            </label>
+          </div>
+
+          <p
+            :for={err <- upload_errors(@uploads.attachments)}
+            class="text-error text-sm mt-1"
+          >
+            {upload_error_to_string(err)}
+          </p>
+        </div>
+      </div>
+
+      <div class="mb-8">
+        <label class="label mb-2">
+          <span class="label-text">Project</span>
+          <span class="label-text-alt text-base-content/30">Optional</span>
+        </label>
+        <input
+          type="text"
+          name="run[feature_name]"
+          value={@feature_name}
+          list="feature-suggestions"
+          placeholder="e.g. products-page"
+          class="input input-bordered w-full text-sm"
+        />
+        <datalist id="feature-suggestions">
+          <option :for={name <- @feature_suggestions} value={name} />
+        </datalist>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          class="size-4"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M9 4.5a.75.75 0 0 1 .721.544l.813 2.846a3.75 3.75 0 0 0 2.576 2.576l2.846.813a.75.75 0 0 1 0 1.442l-2.846.813a3.75 3.75 0 0 0-2.576 2.576l-.813 2.846a.75.75 0 0 1-1.442 0l-.813-2.846a3.75 3.75 0 0 0-2.576-2.576l-2.846-.813a.75.75 0 0 1 0-1.442l2.846-.813A3.75 3.75 0 0 0 7.466 7.89l.813-2.846A.75.75 0 0 1 9 4.5ZM18 1.5a.75.75 0 0 1 .728.568l.258 1.036c.236.94.97 1.674 1.91 1.91l1.036.258a.75.75 0 0 1 0 1.456l-1.036.258c-.94.236-1.674.97-1.91 1.91l-.258 1.036a.75.75 0 0 1-1.456 0l-.258-1.036a2.625 2.625 0 0 0-1.91-1.91l-1.036-.258a.75.75 0 0 1 0-1.456l1.036-.258a2.625 2.625 0 0 0 1.91-1.91l.258-1.036A.75.75 0 0 1 18 1.5ZM16.5 15a.75.75 0 0 1 .712.513l.394 1.183c.15.447.5.799.948.948l1.183.395a.75.75 0 0 1 0 1.422l-1.183.395c-.447.15-.799.5-.948.948l-.395 1.183a.75.75 0 0 1-1.422 0l-.395-1.183a1.5 1.5 0 0 0-.948-.948l-1.183-.395a.75.75 0 0 1 0-1.422l1.183-.395c.447-.15.799-.5.948-.948l.395-1.183A.75.75 0 0 1 16.5 15Z"
+            clip-rule="evenodd"
+          />
+        </svg>
+        Start run
+      </button>
+    </div>
+
+    <div class="mb-8">
+      <.h2>Additional Settings</.h2>
+    </div>
+
+    <div class="mb-8">
+      <label class="label mb-2">
+        <span class="label-text">LLM Backend</span>
+      </label>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <.backend_card
+          :for={backend <- @backends}
+          value={backend.name}
+          label={backend.label}
+          description={backend.description}
+          selected={@llm_backend == backend.name}
+        />
+      </div>
+    </div>
+
+    <div class="mb-8">
+      <label class="label mb-2">
+        <span class="label-text">Workflow Stages</span>
+      </label>
+      <p class="text-sm text-base-content/50 mb-2">
+        Uncheck stages to skip them. Enable interactive to pause after each stage for feedback.
+      </p>
+      <div class="flex flex-col gap-2">
+        <div
+          :for={{stage_key, label} <- @toggleable_stages}
+          class="flex items-center gap-3"
+        >
+          <input
+            type="checkbox"
+            checked={stage_key not in @skipped_stages}
+            phx-click="toggle_stage"
+            phx-value-stage={stage_key}
+            class="toggle toggle-sm toggle-primary"
+          />
+          <span class="text-sm flex-1">{label}</span>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <span class="text-xs text-base-content/40">interactive</span>
+            <input
+              type="checkbox"
+              checked={stage_key in @interactive_stages}
+              phx-click="toggle_interactive_stage"
+              phx-value-stage={stage_key}
+              class="toggle toggle-sm toggle-secondary"
+            />
+          </label>
+        </div>
+      </div>
+    </div>
+  </form>
+</.page_layout>

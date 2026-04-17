@@ -1,0 +1,73 @@
+<.page_layout
+  current_page={:settings}
+  prefix={pyre_path(@socket, "")}
+  uri={@uri}
+  breadcrumbs={[
+    %{label: "Settings", path: "#{pyre_path(@socket, "")}/settings"},
+    %{label: "GitHub Apps", path: "#{pyre_path(@socket, "")}/settings/github-apps"},
+    %{label: "New"}
+  ]}
+>
+  <%= if @configured do %>
+    <div class="card bg-base-200 p-6">
+      <h3 class="text-lg font-semibold mb-2">GitHub App Connected</h3>
+      <p>Your GitHub App is configured and ready to receive webhook events.</p>
+      <p class="mt-2">
+        Bot slug: <code class="badge badge-ghost">{@bot_slug}</code>
+      </p>
+      <p class="mt-1">
+        Users can mention <code class="badge badge-ghost">@{@bot_slug}</code>
+        in PR comments to trigger reviews.
+      </p>
+    </div>
+  <% else %>
+    <div class="card bg-base-200 p-6">
+      <h3 class="text-lg font-semibold mb-2">Register a GitHub App</h3>
+      <p>
+        Register a GitHub App to enable @mention-triggered PR reviews.
+        This uses GitHub's manifest flow to create an App with the correct permissions.
+      </p>
+
+      <div class="form-control mt-4">
+        <label class="label" for="org_name">
+          <span class="label-text">
+            Organization (optional — leave blank for personal account)
+          </span>
+        </label>
+        <input
+          type="text"
+          id="org_name"
+          name="org_name"
+          value={@org_name || ""}
+          phx-blur="set_org"
+          placeholder="your-org-name"
+          class="input input-bordered input-sm w-full max-w-xs"
+        />
+      </div>
+
+      <form method="post" action={github_new_app_url(@org_name)} class="mt-4">
+        <input type="hidden" name="manifest" value={manifest_json(base_url(@uri))} />
+        <button type="submit" class="btn btn-primary btn-sm">
+          Register GitHub App on GitHub
+        </button>
+      </form>
+
+      <div class="mt-6">
+        <h4 class="font-semibold mb-1">What happens next</h4>
+        <ol class="list-decimal list-inside text-sm space-y-1">
+          <li>You'll be redirected to GitHub to review and approve the App.</li>
+          <li>GitHub redirects back here with your App credentials.</li>
+          <li>Set the credentials as environment variables and restart.</li>
+        </ol>
+
+        <h4 class="font-semibold mt-4 mb-1">Required environment variables</h4>
+        <ul class="list-disc list-inside text-sm space-y-1">
+          <li><code>GITHUB_APP_ID</code></li>
+          <li><code>GITHUB_APP_PRIVATE_KEY</code></li>
+          <li><code>GITHUB_WEBHOOK_SECRET</code></li>
+          <li><code>GITHUB_APP_BOT_SLUG</code></li>
+        </ul>
+      </div>
+    </div>
+  <% end %>
+</.page_layout>

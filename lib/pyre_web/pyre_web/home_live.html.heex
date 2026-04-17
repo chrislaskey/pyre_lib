@@ -1,0 +1,44 @@
+<.page_layout
+  current_page={:home}
+  prefix={pyre_path(@socket, "")}
+  uri={@uri}
+  breadcrumbs={[]}
+>
+  <.h1>Pyre</.h1>
+  <p class="text-base-content/80">Multi-agent LLM framework for Phoenix development.</p>
+  <p class="text-base-content/50 text-sm mb-6">Pyre v{pyre_version()}</p>
+
+  <div class="flex gap-3">
+    <.link navigate={pyre_path(@socket, "/runs/new")} class="btn btn-primary">
+      Start a New Run
+    </.link>
+    <.link navigate={pyre_path(@socket, "/runs")} class="btn btn-outline">View Runs</.link>
+  </div>
+
+  <h2 class="text-lg font-semibold mt-12 mb-3">Connected Apps</h2>
+
+  <.live_component
+    module={PyreWeb.ConnectionPresenceComponent}
+    id="connection-presence"
+    presences={@presences}
+  />
+
+  <div :if={@execution} class="mt-8">
+    <div class="flex items-center gap-3 mb-3">
+      <h2 class="text-lg font-semibold">Remote Execution</h2>
+      <span class="text-xs font-mono text-base-content/50">{@execution.id}</span>
+      <span class={[
+        "badge badge-sm",
+        @execution.status == :running && "badge-info",
+        @execution.status == :complete && "badge-success",
+        @execution.status == :error && "badge-error"
+      ]}>
+        {@execution.status}
+      </span>
+    </div>
+    <div class="font-mono text-sm bg-neutral text-neutral-content p-4 rounded-lg max-h-96 overflow-y-auto">
+      <div :for={line <- @action_output} class="whitespace-pre-wrap">{line}</div>
+      <div :if={@execution.status == :running} class="animate-pulse mt-1">_</div>
+    </div>
+  </div>
+</.page_layout>

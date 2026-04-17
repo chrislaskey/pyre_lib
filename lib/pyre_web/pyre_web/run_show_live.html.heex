@@ -1,0 +1,75 @@
+<.page_layout
+  current_page={:run_show}
+  prefix={pyre_path(@socket, "")}
+  uri={@uri}
+  breadcrumbs={[
+    %{label: "Runs", path: pyre_path(@socket, "/runs")},
+    %{label: @run_id}
+  ]}
+>
+  <div class="mb-6 flex items-center gap-4">
+    <.h1>Run {@run_id}</.h1>
+    <span class={"badge badge-sm #{status_badge_class(@status)}"}>
+      {status_label(@status)}
+    </span>
+    <%= if @status not in [:complete, :stopped, :error] do %>
+      <%= if @confirm_stop do %>
+        <span class="ml-auto flex items-center gap-2">
+          <span class="text-sm text-warning">Stop this run?</span>
+          <button phx-click="confirm_stop" class="btn btn-error btn-xs">Yes, stop</button>
+          <button phx-click="cancel_stop" class="btn btn-ghost btn-xs">Cancel</button>
+        </span>
+      <% else %>
+        <button phx-click="request_stop" class="btn btn-outline btn-error btn-sm ml-auto">
+          Stop
+        </button>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div :if={@feature} class="mb-2 text-sm text-base-content/50 font-mono">
+    Feature: {@feature}
+  </div>
+
+  <div class="mb-4 text-sm text-base-content/70">
+    {@feature_description}
+  </div>
+
+  {PyreWeb.Config.call(:render_run, [assigns])}
+
+  <.workflow_panel
+    phases={@phases}
+    phase_order={@phase_order}
+    current={@phase}
+    status={@status}
+    skipped={@skipped_stages}
+    interactive={@interactive_stages}
+    waiting_for_input={@waiting_for_input}
+    session_ids={@session_ids}
+  />
+
+  <div class="border border-base-300 rounded-lg overflow-hidden">
+    <div class="bg-base-200 px-4 py-2 flex items-center justify-between border-b border-base-300">
+      <span class="text-sm font-medium">Output</span>
+    </div>
+
+    <div
+      id="output-stream"
+      phx-update="stream"
+      class="font-mono text-sm p-4 max-h-[600px] overflow-y-auto bg-neutral text-neutral-content whitespace-pre-wrap"
+    >
+      <pre
+        :for={{dom_id, item} <- @streams.items}
+        id={dom_id}
+        class={item_class(item.type)}
+      >{item.content}</pre>
+    </div>
+  </div>
+
+  <.reply_panel
+    :if={@waiting_for_input}
+    waiting_phase={@waiting_phase}
+    backend={@backend}
+    reply_text={@reply_text}
+  />
+</.page_layout>

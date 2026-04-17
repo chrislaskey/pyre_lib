@@ -1,0 +1,84 @@
+<.page_layout
+  current_page={:settings}
+  prefix={pyre_path(@socket, "")}
+  uri={@uri}
+  breadcrumbs={[
+    %{label: "Settings", path: "#{pyre_path(@socket, "")}/settings"},
+    %{label: "GitHub Apps"}
+  ]}
+>
+  <div class="max-w-2xl">
+    <%= if @apps != [] do %>
+      <div class="space-y-4">
+        <%= for app <- @apps do %>
+          <div class="card bg-base-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold">{app.bot_slug || "GitHub App"}</h3>
+              <span class="badge badge-success badge-sm">Connected</span>
+            </div>
+
+            <table class="table table-sm">
+              <tbody>
+                <tr>
+                  <td class="font-medium opacity-70 w-40">App ID</td>
+                  <td><code class="badge badge-ghost badge-sm">{app.app_id}</code></td>
+                </tr>
+                <tr>
+                  <td class="font-medium opacity-70">Bot slug</td>
+                  <td>
+                    <%= if app.bot_slug do %>
+                      <code class="badge badge-ghost badge-sm">{app.bot_slug}</code>
+                    <% else %>
+                      <span class="badge badge-warning badge-sm badge-outline">Not set</span>
+                    <% end %>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-medium opacity-70">Private key</td>
+                  <td>
+                    <%= if app.private_key_set do %>
+                      <span class="badge badge-success badge-sm badge-outline">Configured</span>
+                    <% else %>
+                      <span class="badge badge-warning badge-sm badge-outline">Not set</span>
+                    <% end %>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-medium opacity-70">Webhook secret</td>
+                  <td>
+                    <%= if app.webhook_secret_set do %>
+                      <span class="badge badge-success badge-sm badge-outline">Configured</span>
+                    <% else %>
+                      <span class="badge badge-warning badge-sm badge-outline">Not set</span>
+                    <% end %>
+                  </td>
+                </tr>
+                <%= if app.bot_slug do %>
+                  <tr>
+                    <td class="font-medium opacity-70">Mention trigger</td>
+                    <td>
+                      <code class="badge badge-ghost badge-sm">@{app.bot_slug} review</code>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="card bg-base-200 p-6">
+        <p class="opacity-70">No GitHub Apps configured.</p>
+      </div>
+    <% end %>
+
+    <div class="mt-6">
+      <.link
+        navigate={"#{pyre_path(@socket, "")}/settings/github-apps/new"}
+        class="btn btn-primary btn-sm"
+      >
+        Register a new GitHub App
+      </.link>
+    </div>
+  </div>
+</.page_layout>
