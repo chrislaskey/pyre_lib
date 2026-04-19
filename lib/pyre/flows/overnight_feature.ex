@@ -31,9 +31,12 @@ defmodule Pyre.Flows.OvernightFeature do
     * `:github` -- GitHub repo config map with `:owner`, `:repo`, `:token`, and
       optional `:base_branch`. Required for the shipping phase to create PRs.
       Typically set via `config :pyre, :github` in `runtime.exs`.
+    * `:connection_id` -- Worker connection ID for dispatch. Required.
+    * `:dispatch_fn` -- Function to dispatch actions to workers. Required.
   """
 
   alias Pyre.Actions.{Designer, ProductManager, Programmer, QAReviewer, Shipper, TestWriter}
+  alias Pyre.Flows.Dispatch
   alias Pyre.Plugins.Artifact
 
   @max_review_cycles 3
@@ -46,6 +49,45 @@ defmodule Pyre.Flows.OvernightFeature do
     reviewing: [:implementing, :shipping, :complete],
     shipping: [:complete],
     complete: []
+  }
+
+  @stage_to_phase %{
+    product_manager: :planning,
+    designer: :designing,
+    programmer: :implementing,
+    test_writer: :testing,
+    code_reviewer: :reviewing,
+    shipper: :shipping
+  }
+
+  @stage_fallback_field %{
+    product_manager: :requirements,
+    designer: :design,
+    programmer: :implementation,
+    test_writer: :tests,
+    code_reviewer: {:verdict, :verdict_text},
+    shipper: :shipping_summary
+  }
+
+  @stage_model_tier %{
+    product_manager: :standard,
+    designer: :standard,
+    programmer: :advanced,
+    test_writer: :standard,
+    code_reviewer: :advanced,
+    shipper: :standard
+  }
+
+  # Maps stage name to {result_field, artifact_base} for the finalize-on-continue call.
+  # {field, nil} means "set the field but don't write an artifact file."
+  # nil means the stage has a complex return type handled by parse_verdict or action_type.
+  @stage_artifact_info %{
+    product_manager: {:requirements, "01_requirements"},
+    designer: {:design, "02_design_spec"},
+    programmer: {:implementation, nil},
+    test_writer: {:tests, nil},
+    code_reviewer: nil,
+    shipper: nil
   }
 
   @doc """
@@ -93,7 +135,10 @@ defmodule Pyre.Flows.OvernightFeature do
         interactive_stage_fn: Keyword.get(opts, :interactive_stage_fn),
         await_user_action_fn: Keyword.get(opts, :await_user_action_fn),
         session_ids: Keyword.get(opts, :session_ids, %{}),
-        github: Keyword.get(opts, :github) || github_from_config()
+        github: Keyword.get(opts, :github) || github_from_config(),
+        connection_id: Keyword.fetch!(opts, :connection_id),
+        dispatch_fn: Keyword.fetch!(opts, :dispatch_fn),
+        max_turns: Keyword.get(opts, :max_turns, 50)
       }
 
       context.log_fn.("Run directory: #{run_dir}")
@@ -159,11 +204,18 @@ defmodule Pyre.Flows.OvernightFeature do
 
   defp drive(%{phase: :planning} = state, context) do
     with {:ok, result} <-
-           run_action(ProductManager, :product_manager, state, context, %{
-             feature_description: state.feature_description,
-             run_dir: state.run_dir,
-             attachments: state.attachments
-           }) do
+           Dispatch.run_action(
+             ProductManager,
+             :product_manager,
+             state,
+             context,
+             %{
+               feature_description: state.feature_description,
+               run_dir: state.run_dir,
+               attachments: state.attachments
+             },
+             stage_config()
+           ) do
       state
       |> Map.merge(result)
       |> advance_phase(:designing)
@@ -173,12 +225,19 @@ defmodule Pyre.Flows.OvernightFeature do
 
   defp drive(%{phase: :designing} = state, context) do
     with {:ok, result} <-
-           run_action(Designer, :designer, state, context, %{
-             feature_description: state.feature_description,
-             requirements: state.requirements,
-             run_dir: state.run_dir,
-             attachments: state.attachments
-           }) do
+           Dispatch.run_action(
+             Designer,
+             :designer,
+             state,
+             context,
+             %{
+               feature_description: state.feature_description,
+               requirements: state.requirements,
+               run_dir: state.run_dir,
+               attachments: state.attachments
+             },
+             stage_config()
+           ) do
       state
       |> Map.merge(result)
       |> advance_phase(:implementing)
@@ -201,7 +260,8 @@ defmodule Pyre.Flows.OvernightFeature do
         do: Map.put(params, :previous_verdict, state.verdict_text),
         else: params
 
-    with {:ok, result} <- run_action(Programmer, :programmer, state, context, params) do
+    with {:ok, result} <-
+           Dispatch.run_action(Programmer, :programmer, state, context, params, stage_config()) do
       state
       |> Map.merge(result)
       |> advance_phase(:testing)
@@ -225,7 +285,8 @@ defmodule Pyre.Flows.OvernightFeature do
         do: Map.put(params, :previous_verdict, state.verdict_text),
         else: params
 
-    with {:ok, result} <- run_action(TestWriter, :test_writer, state, context, params) do
+    with {:ok, result} <-
+           Dispatch.run_action(TestWriter, :test_writer, state, context, params, stage_config()) do
       state
       |> Map.merge(result)
       |> advance_phase(:reviewing)
@@ -235,16 +296,23 @@ defmodule Pyre.Flows.OvernightFeature do
 
   defp drive(%{phase: :reviewing} = state, context) do
     with {:ok, result} <-
-           run_action(QAReviewer, :code_reviewer, state, context, %{
-             feature_description: state.feature_description,
-             requirements: state.requirements,
-             design: state.design,
-             implementation: state.implementation,
-             tests: state.tests,
-             run_dir: state.run_dir,
-             review_cycle: state.review_cycle,
-             attachments: state.attachments
-           }) do
+           Dispatch.run_action(
+             QAReviewer,
+             :code_reviewer,
+             state,
+             context,
+             %{
+               feature_description: state.feature_description,
+               requirements: state.requirements,
+               design: state.design,
+               implementation: state.implementation,
+               tests: state.tests,
+               run_dir: state.run_dir,
+               review_cycle: state.review_cycle,
+               attachments: state.attachments
+             },
+             stage_config()
+           ) do
       state = Map.merge(state, result)
       handle_verdict(state, context)
     end
@@ -252,16 +320,23 @@ defmodule Pyre.Flows.OvernightFeature do
 
   defp drive(%{phase: :shipping} = state, context) do
     with {:ok, result} <-
-           run_action(Shipper, :shipper, state, context, %{
-             feature_description: state.feature_description,
-             requirements: state.requirements,
-             design: state.design,
-             implementation: state.implementation,
-             tests: state.tests,
-             verdict_text: state.verdict_text,
-             run_dir: state.run_dir,
-             attachments: state.attachments
-           }) do
+           Dispatch.run_action(
+             Shipper,
+             :shipper,
+             state,
+             context,
+             %{
+               feature_description: state.feature_description,
+               requirements: state.requirements,
+               design: state.design,
+               implementation: state.implementation,
+               tests: state.tests,
+               verdict_text: state.verdict_text,
+               run_dir: state.run_dir,
+               attachments: state.attachments
+             },
+             stage_config()
+           ) do
       state
       |> Map.merge(result)
       |> advance_phase(:complete)
@@ -294,247 +369,27 @@ defmodule Pyre.Flows.OvernightFeature do
     |> drive(context)
   end
 
-  @stage_to_phase %{
-    product_manager: :planning,
-    designer: :designing,
-    programmer: :implementing,
-    test_writer: :testing,
-    code_reviewer: :reviewing,
-    shipper: :shipping
-  }
+  # --- Flow configuration ---
 
-  @stage_fallback_field %{
-    product_manager: :requirements,
-    designer: :design,
-    programmer: :implementation,
-    test_writer: :tests,
-    code_reviewer: {:verdict, :verdict_text},
-    shipper: :shipping_summary
-  }
-
-  @stage_model_tier %{
-    product_manager: :standard,
-    designer: :standard,
-    programmer: :advanced,
-    test_writer: :standard,
-    code_reviewer: :advanced,
-    shipper: :standard
-  }
-
-  # Maps stage name to {result_field, artifact_base} for the finalize-on-continue call.
-  # nil means the stage has a complex return type and finalize is skipped — the
-  # conversation still works, the artifact just isn't rewritten.
-  @stage_artifact_info %{
-    product_manager: {:requirements, "01_requirements"},
-    designer: {:design, "02_design_spec"},
-    programmer: nil,
-    test_writer: nil,
-    code_reviewer: nil,
-    shipper: nil
-  }
-
-  @finalize_prompt """
-  Based on our conversation, please produce the final version of your output.
-  Follow the exact same structure and format as your initial response — keep
-  the same sections and headings — but update the content to reflect everything
-  we discussed and agreed on.\
-  """
-
-  defp run_action(action_module, stage_name, state, context, params) do
-    if stage_skipped?(stage_name, context) do
-      context.log_fn.("\n--- Skipping: #{stage_name} (disabled) ---")
-      fallback = stage_fallback_text(stage_name, state)
-      {:ok, fallback_result(stage_name, fallback)}
-    else
-      if context.dry_run do
-        context.log_fn.("[dry-run] Would run #{stage_name}")
-        {:ok, %{}}
-      else
-        started_at = System.monotonic_time(:second)
-        timestamp = Calendar.strftime(NaiveDateTime.local_now(), "%H:%M:%S")
-        tier = Map.get(@stage_model_tier, stage_name, :standard)
-        model = Pyre.Actions.Helpers.resolve_model(tier, context)
-        model_label = model_short_name(model)
-        context.log_fn.("\n--- Stage: #{stage_name} [#{timestamp}] (#{model_label}) ---")
-
-        if context.verbose do
-          context.log_fn.("[verbose] action: #{inspect(action_module)}")
-          context.log_fn.("[verbose] run_dir: #{params.run_dir}")
-        end
-
-        phase = Map.get(@stage_to_phase, stage_name)
-        session_id = get_in(context, [:session_ids, phase])
-
-        action_context =
-          if session_id, do: Map.put(context, :session_id, session_id), else: context
-
-        action_started_at = System.monotonic_time(:millisecond)
-
-        Pyre.Config.notify(:after_action_start, %Pyre.Events.ActionStarted{
-          action_module: action_module,
-          stage_name: stage_name,
-          model: model,
-          params: params
-        })
-
-        result = action_module.run(params, action_context)
-        elapsed = System.monotonic_time(:second) - started_at
-
-        case result do
-          {:ok, action_result} ->
-            action_elapsed = System.monotonic_time(:millisecond) - action_started_at
-
-            context.log_fn.(
-              "--- Completed: #{stage_name} (#{format_duration(elapsed)}, #{model_label}) ---"
-            )
-
-            Pyre.Config.notify(:after_action_complete, %Pyre.Events.ActionCompleted{
-              action_module: action_module,
-              stage_name: stage_name,
-              result: action_result,
-              model: model,
-              elapsed_ms: action_elapsed
-            })
-
-            maybe_interactive_loop(stage_name, model, action_result, state, context)
-
-          {:error, reason} = error ->
-            action_elapsed = System.monotonic_time(:millisecond) - action_started_at
-
-            context.log_fn.(
-              "--- Failed: #{stage_name} (#{format_duration(elapsed)}, #{model_label}) ---"
-            )
-
-            Pyre.Config.notify(:after_action_error, %Pyre.Events.ActionError{
-              action_module: action_module,
-              stage_name: stage_name,
-              error: reason,
-              model: model,
-              elapsed_ms: action_elapsed
-            })
-
-            error
-        end
-      end
-    end
+  defp stage_config do
+    %{
+      stage_to_phase: @stage_to_phase,
+      stage_model_tier: @stage_model_tier,
+      stage_artifact_info: @stage_artifact_info,
+      fallback_fn: &build_fallback/2
+    }
   end
 
-  defp maybe_interactive_loop(stage_name, model, result, state, context) do
-    phase = Map.get(@stage_to_phase, stage_name)
-
-    if interactive_stage?(stage_name, context) do
-      session_id = get_in(context, [:session_ids, phase])
-      interactive_loop(stage_name, phase, model, session_id, result, state, context, 0)
-    else
-      {:ok, result}
-    end
+  defp build_fallback(:product_manager, state) do
+    %{requirements: state.feature_description}
   end
 
-  defp interactive_loop(stage_name, phase, model, session_id, result, state, context, reply_count) do
-    case context.await_user_action_fn.(phase) do
-      :continue when reply_count == 0 ->
-        {:ok, result}
-
-      :continue ->
-        context.log_fn.(
-          "\n--- Continuing to next stage. Finalizing artifact for current stage first: #{stage_name} ---"
-        )
-
-        finalize_artifact(stage_name, model, session_id, result, state, context)
-
-      {:reply, user_text} ->
-        messages = [%{role: :user, content: user_text}]
-
-        opts = [
-          resume: session_id,
-          streaming: context.streaming,
-          output_fn: context.output_fn,
-          working_dir: context.working_dir,
-          add_dirs: Map.get(context, :add_dirs, [])
-        ]
-
-        case context.llm.chat(model, messages, [], opts) do
-          {:ok, _response} ->
-            interactive_loop(
-              stage_name,
-              phase,
-              model,
-              session_id,
-              result,
-              state,
-              context,
-              reply_count + 1
-            )
-
-          {:error, _} = error ->
-            error
-        end
-    end
+  defp build_fallback(:code_reviewer, _state) do
+    %{verdict: :approve, verdict_text: "Skipped"}
   end
 
-  defp finalize_artifact(stage_name, model, session_id, result, state, context) do
-    messages = [%{role: :user, content: @finalize_prompt}]
-
-    opts = [
-      resume: session_id,
-      streaming: context.streaming,
-      output_fn: context.output_fn,
-      working_dir: context.working_dir,
-      add_dirs: Map.get(context, :add_dirs, [])
-    ]
-
-    case context.llm.chat(model, messages, [], opts) do
-      {:ok, response} ->
-        finalized_text = response_to_text(response)
-
-        case Map.get(@stage_artifact_info, stage_name) do
-          nil ->
-            {:ok, result}
-
-          {field, artifact_base} ->
-            {:ok, content} = Artifact.read_or_write(state.run_dir, artifact_base, finalized_text)
-            {:ok, Map.put(result, field, content)}
-        end
-
-      {:error, _} = error ->
-        error
-    end
-  end
-
-  defp response_to_text(%ReqLLM.Response{} = response), do: ReqLLM.Response.text(response) || ""
-  defp response_to_text(text) when is_binary(text), do: text
-
-  defp stage_skipped?(stage_name, context) do
-    phase = Map.get(@stage_to_phase, stage_name)
-
-    case Map.get(context, :skip_check_fn) do
-      nil -> false
-      check_fn when is_function(check_fn) -> check_fn.(phase)
-    end
-  end
-
-  defp interactive_stage?(stage_name, context) do
-    phase = Map.get(@stage_to_phase, stage_name)
-
-    case Map.get(context, :interactive_stage_fn) do
-      nil -> false
-      check_fn when is_function(check_fn) -> check_fn.(phase)
-    end
-  end
-
-  defp stage_fallback_text(:product_manager, state) do
-    state.feature_description
-  end
-
-  defp stage_fallback_text(stage_name, _state) do
-    Pyre.Plugins.BestPractices.fallback_text(stage_name)
-  end
-
-  defp fallback_result(:code_reviewer, text) do
-    %{verdict: :approve, verdict_text: text}
-  end
-
-  defp fallback_result(stage_name, text) do
+  defp build_fallback(stage_name, _state) do
+    text = Pyre.Plugins.BestPractices.fallback_text(stage_name)
     field = Map.fetch!(@stage_fallback_field, stage_name)
     %{field => text}
   end
@@ -548,21 +403,6 @@ defmodule Pyre.Flows.OvernightFeature do
     else
       raise "Invalid phase transition: #{current} -> #{next_phase}"
     end
-  end
-
-  defp model_short_name(model) when is_binary(model) do
-    # "anthropic:claude-sonnet-4-20250514" → "claude-sonnet-4"
-    model
-    |> String.replace(~r/^[^:]+:/, "")
-    |> String.replace(~r/-\d{8}$/, "")
-  end
-
-  defp format_duration(seconds) when seconds < 60, do: "#{seconds}s"
-
-  defp format_duration(seconds) do
-    minutes = div(seconds, 60)
-    remaining = rem(seconds, 60)
-    "#{minutes}m #{remaining}s"
   end
 
   defp allowed_paths_from_config do

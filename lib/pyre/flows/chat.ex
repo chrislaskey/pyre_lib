@@ -22,14 +22,29 @@ defmodule Pyre.Flows.Chat do
     * `:allowed_paths` -- Additional directories agents can read/write.
     * `:output_fn` -- Function called with each streaming token. Default `&IO.write/1`.
     * `:log_fn` -- Function called with status/progress messages. Default `&IO.puts/1`.
+    * `:connection_id` -- Worker connection ID for dispatch. Required.
+    * `:dispatch_fn` -- Function to dispatch actions to workers. Required.
   """
 
   alias Pyre.Actions.Generalist
+  alias Pyre.Flows.Dispatch
   alias Pyre.Plugins.Artifact
 
   @transitions %{
     generalist: [:complete],
     complete: []
+  }
+
+  @stage_to_phase %{
+    generalist: :generalist
+  }
+
+  @stage_artifact_info %{
+    generalist: {:generalist_output, "01_generalist_output"}
+  }
+
+  @stage_model_tier %{
+    generalist: :advanced
   }
 
   @doc """
@@ -78,7 +93,10 @@ defmodule Pyre.Flows.Chat do
         skip_check_fn: Keyword.get(opts, :skip_check_fn),
         interactive_stage_fn: Keyword.get(opts, :interactive_stage_fn),
         await_user_action_fn: Keyword.get(opts, :await_user_action_fn),
-        session_ids: Keyword.get(opts, :session_ids, %{})
+        session_ids: Keyword.get(opts, :session_ids, %{}),
+        connection_id: Keyword.fetch!(opts, :connection_id),
+        dispatch_fn: Keyword.fetch!(opts, :dispatch_fn),
+        max_turns: Keyword.get(opts, :max_turns, 50)
       }
 
       context.log_fn.("Run directory: #{run_dir}")
@@ -137,11 +155,18 @@ defmodule Pyre.Flows.Chat do
 
   defp drive(%{phase: :generalist} = state, context) do
     with {:ok, result} <-
-           run_action(Generalist, :generalist, state, context, %{
-             feature_description: state.feature_description,
-             run_dir: state.run_dir,
-             attachments: state.attachments
-           }) do
+           Dispatch.run_action(
+             Generalist,
+             :generalist,
+             state,
+             context,
+             %{
+               feature_description: state.feature_description,
+               run_dir: state.run_dir,
+               attachments: state.attachments
+             },
+             stage_config()
+           ) do
       state
       |> Map.merge(result)
       |> advance_phase(:complete)
@@ -149,220 +174,19 @@ defmodule Pyre.Flows.Chat do
     end
   end
 
-  # --- Stage orchestration helpers ---
+  # --- Flow configuration ---
 
-  @stage_to_phase %{
-    generalist: :generalist
-  }
-
-  @stage_fallback_field %{
-    generalist: :generalist_output
-  }
-
-  @stage_artifact_info %{
-    generalist: {:generalist_output, "01_generalist_output"}
-  }
-
-  @finalize_prompt """
-  Based on our conversation, please produce the final version of your output.
-  Follow the exact same structure and format as your initial response — keep
-  the same sections and headings — but update the content to reflect everything
-  we discussed and agreed on.\
-  """
-
-  @stage_model_tier %{
-    generalist: :advanced
-  }
-
-  defp run_action(action_module, stage_name, state, context, params) do
-    if stage_skipped?(stage_name, context) do
-      context.log_fn.("\n--- Skipping: #{stage_name} (disabled) ---")
-      fallback = stage_fallback_text(stage_name, state)
-      {:ok, fallback_result(stage_name, fallback)}
-    else
-      if context.dry_run do
-        context.log_fn.("[dry-run] Would run #{stage_name}")
-        {:ok, %{}}
-      else
-        started_at = System.monotonic_time(:second)
-        timestamp = Calendar.strftime(NaiveDateTime.local_now(), "%H:%M:%S")
-        tier = Map.get(@stage_model_tier, stage_name, :standard)
-        model = Pyre.Actions.Helpers.resolve_model(tier, context)
-        model_label = model_short_name(model)
-        context.log_fn.("\n--- Stage: #{stage_name} [#{timestamp}] (#{model_label}) ---")
-
-        if context.verbose do
-          context.log_fn.("[verbose] action: #{inspect(action_module)}")
-          context.log_fn.("[verbose] run_dir: #{params.run_dir}")
-        end
-
-        phase = Map.get(@stage_to_phase, stage_name)
-        session_id = get_in(context, [:session_ids, phase])
-
-        action_context =
-          if session_id, do: Map.put(context, :session_id, session_id), else: context
-
-        action_started_at = System.monotonic_time(:millisecond)
-
-        Pyre.Config.notify(:after_action_start, %Pyre.Events.ActionStarted{
-          action_module: action_module,
-          stage_name: stage_name,
-          model: model,
-          params: params
-        })
-
-        result = action_module.run(params, action_context)
-        elapsed = System.monotonic_time(:second) - started_at
-
-        case result do
-          {:ok, action_result} ->
-            action_elapsed = System.monotonic_time(:millisecond) - action_started_at
-
-            context.log_fn.(
-              "--- Completed: #{stage_name} (#{format_duration(elapsed)}, #{model_label}) ---"
-            )
-
-            Pyre.Config.notify(:after_action_complete, %Pyre.Events.ActionCompleted{
-              action_module: action_module,
-              stage_name: stage_name,
-              result: action_result,
-              model: model,
-              elapsed_ms: action_elapsed
-            })
-
-            maybe_interactive_loop(stage_name, model, action_result, state, context)
-
-          {:error, reason} = error ->
-            action_elapsed = System.monotonic_time(:millisecond) - action_started_at
-
-            context.log_fn.(
-              "--- Failed: #{stage_name} (#{format_duration(elapsed)}, #{model_label}) ---"
-            )
-
-            Pyre.Config.notify(:after_action_error, %Pyre.Events.ActionError{
-              action_module: action_module,
-              stage_name: stage_name,
-              error: reason,
-              model: model,
-              elapsed_ms: action_elapsed
-            })
-
-            error
-        end
-      end
-    end
+  defp stage_config do
+    %{
+      stage_to_phase: @stage_to_phase,
+      stage_model_tier: @stage_model_tier,
+      stage_artifact_info: @stage_artifact_info,
+      fallback_fn: &build_fallback/2
+    }
   end
 
-  defp maybe_interactive_loop(stage_name, model, result, state, context) do
-    phase = Map.get(@stage_to_phase, stage_name)
-
-    if interactive_stage?(stage_name, context) do
-      session_id = get_in(context, [:session_ids, phase])
-      interactive_loop(stage_name, phase, model, session_id, result, state, context, 0)
-    else
-      {:ok, result}
-    end
-  end
-
-  defp interactive_loop(stage_name, phase, model, session_id, result, state, context, reply_count) do
-    case context.await_user_action_fn.(phase) do
-      :continue when reply_count == 0 ->
-        {:ok, result}
-
-      :continue ->
-        context.log_fn.(
-          "\n--- Continuing to next stage. Finalizing artifact for current stage first: #{stage_name} ---"
-        )
-
-        finalize_artifact(stage_name, model, session_id, result, state, context)
-
-      {:reply, user_text} ->
-        messages = [%{role: :user, content: user_text}]
-
-        opts = [
-          resume: session_id,
-          streaming: context.streaming,
-          output_fn: context.output_fn,
-          working_dir: context.working_dir,
-          add_dirs: Map.get(context, :add_dirs, [])
-        ]
-
-        case context.llm.chat(model, messages, [], opts) do
-          {:ok, _response} ->
-            interactive_loop(
-              stage_name,
-              phase,
-              model,
-              session_id,
-              result,
-              state,
-              context,
-              reply_count + 1
-            )
-
-          {:error, _} = error ->
-            error
-        end
-    end
-  end
-
-  defp finalize_artifact(stage_name, model, session_id, result, state, context) do
-    messages = [%{role: :user, content: @finalize_prompt}]
-
-    opts = [
-      resume: session_id,
-      streaming: context.streaming,
-      output_fn: context.output_fn,
-      working_dir: context.working_dir,
-      add_dirs: Map.get(context, :add_dirs, [])
-    ]
-
-    case context.llm.chat(model, messages, [], opts) do
-      {:ok, response} ->
-        finalized_text = response_to_text(response)
-
-        case Map.get(@stage_artifact_info, stage_name) do
-          nil ->
-            {:ok, result}
-
-          {field, artifact_base} ->
-            {:ok, content} = Artifact.read_or_write(state.run_dir, artifact_base, finalized_text)
-            {:ok, Map.put(result, field, content)}
-        end
-
-      {:error, _} = error ->
-        error
-    end
-  end
-
-  defp response_to_text(%ReqLLM.Response{} = response), do: ReqLLM.Response.text(response) || ""
-  defp response_to_text(text) when is_binary(text), do: text
-
-  defp stage_skipped?(stage_name, context) do
-    phase = Map.get(@stage_to_phase, stage_name)
-
-    case Map.get(context, :skip_check_fn) do
-      nil -> false
-      check_fn when is_function(check_fn) -> check_fn.(phase)
-    end
-  end
-
-  defp interactive_stage?(stage_name, context) do
-    phase = Map.get(@stage_to_phase, stage_name)
-
-    case Map.get(context, :interactive_stage_fn) do
-      nil -> false
-      check_fn when is_function(check_fn) -> check_fn.(phase)
-    end
-  end
-
-  defp stage_fallback_text(:generalist, state) do
-    state.feature_description
-  end
-
-  defp fallback_result(stage_name, text) do
-    field = Map.fetch!(@stage_fallback_field, stage_name)
-    %{field => text}
+  defp build_fallback(:generalist, state) do
+    %{generalist_output: state.feature_description}
   end
 
   defp advance_phase(state, next_phase) do
@@ -374,20 +198,6 @@ defmodule Pyre.Flows.Chat do
     else
       raise "Invalid phase transition: #{current} -> #{next_phase}"
     end
-  end
-
-  defp model_short_name(model) when is_binary(model) do
-    model
-    |> String.replace(~r/^[^:]+:/, "")
-    |> String.replace(~r/-\d{8}$/, "")
-  end
-
-  defp format_duration(seconds) when seconds < 60, do: "#{seconds}s"
-
-  defp format_duration(seconds) do
-    minutes = div(seconds, 60)
-    remaining = rem(seconds, 60)
-    "#{minutes}m #{remaining}s"
   end
 
   defp allowed_paths_from_config do

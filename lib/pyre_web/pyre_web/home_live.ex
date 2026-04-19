@@ -91,14 +91,28 @@ defmodule PyreWeb.HomeLive do
   end
 
   def handle_info({:action_output, payload}, socket) do
-    line = payload["line"] || ""
-    {:noreply, assign(socket, action_output: socket.assigns.action_output ++ [line])}
+    content = payload["content"] || payload["line"] || ""
+    {:noreply, assign(socket, action_output: socket.assigns.action_output ++ [content])}
   end
 
   def handle_info({:action_complete, payload}, socket) do
     execution = socket.assigns.execution
-    exit_codes = payload["exit_codes"] || []
-    status = if Enum.all?(exit_codes, &(&1 == 0)), do: :complete, else: :error
+
+    status =
+      case payload do
+        %{"status" => "ok"} ->
+          :complete
+
+        %{"status" => "error"} ->
+          :error
+
+        %{"exit_codes" => exit_codes} ->
+          if Enum.all?(exit_codes, &(&1 == 0)), do: :complete, else: :error
+
+        _ ->
+          :complete
+      end
+
     {:noreply, assign(socket, execution: %{execution | status: status})}
   end
 

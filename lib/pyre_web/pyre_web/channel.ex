@@ -89,6 +89,14 @@ defmodule PyreWeb.Channel do
     {:noreply, socket}
   end
 
+  def handle_in("action_result", %{"execution_id" => id} = payload, socket) do
+    if pubsub = Application.get_env(:pyre, :pubsub) do
+      Phoenix.PubSub.broadcast(pubsub, "pyre:action:output:#{id}", {:action_result, payload})
+    end
+
+    {:noreply, socket}
+  end
+
   @impl true
   def handle_info(:after_join, socket) do
     if PyreWeb.Presence.running?() do
@@ -109,6 +117,18 @@ defmodule PyreWeb.Channel do
   # Forward an action from PubSub (originating from HomeLive) to the connected client
   def handle_info({:action, execution_id, action}, socket) do
     push(socket, "action", Map.put(action, :execution_id, execution_id))
+    {:noreply, socket}
+  end
+
+  # Forward continuation message from flow Task process to the connected client
+  def handle_info({:action_continue, execution_id, payload}, socket) do
+    push(socket, "action_continue", Map.put(payload, "execution_id", execution_id))
+    {:noreply, socket}
+  end
+
+  # Forward finish signal from flow Task process to the connected client
+  def handle_info({:action_finish, execution_id}, socket) do
+    push(socket, "action_finish", %{"execution_id" => execution_id})
     {:noreply, socket}
   end
 end

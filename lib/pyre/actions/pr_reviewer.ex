@@ -25,6 +25,31 @@ defmodule Pyre.Actions.PRReviewer do
   @artifact_base "07_pr_review"
   @model_tier :advanced
 
+  def action_type, do: "git_review"
+  def role, do: "pr_reviewer"
+
+  def build_messages(params, _state) do
+    {:ok, system_msg} = Persona.system_message(@persona)
+    attachments = Map.get(params, :attachments, [])
+
+    artifacts_content =
+      Helpers.assemble_artifacts([
+        {"03_architecture_plan.md", params.architecture_plan},
+        {"06_implementation_summary.md", params.implementation_summary}
+      ])
+
+    user_msg =
+      Persona.user_message(
+        params.feature_description,
+        artifacts_content,
+        params.run_dir,
+        "#{@artifact_base}.md",
+        attachments
+      )
+
+    [system_msg, user_msg]
+  end
+
   @impl true
   def run(params, context) do
     model = Helpers.resolve_model(@model_tier, context)

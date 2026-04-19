@@ -26,6 +26,42 @@ defmodule Pyre.Actions.TestWriter do
   @artifact_base "04_test_summary"
   @model_tier :standard
 
+  def action_type, do: "prompt"
+  def role, do: "test_writer"
+
+  def build_messages(params, _state) do
+    {:ok, system_msg} = Persona.system_message(@persona)
+    attachments = Map.get(params, :attachments, [])
+    cycle = Map.get(params, :review_cycle, 1)
+
+    prior = [
+      {"01_requirements.md", params.requirements},
+      {"02_design_spec.md", params.design},
+      {"03_implementation_summary.md", params.implementation}
+    ]
+
+    prior =
+      if params[:previous_verdict] do
+        prior ++ [{"previous_review_verdict.md", params.previous_verdict}]
+      else
+        prior
+      end
+
+    artifacts_content = Helpers.assemble_artifacts(prior)
+    artifact_name = Artifact.versioned_name(@artifact_base, cycle)
+
+    user_msg =
+      Persona.user_message(
+        params.feature_description,
+        artifacts_content,
+        params.run_dir,
+        "#{artifact_name}.md",
+        attachments
+      )
+
+    [system_msg, user_msg]
+  end
+
   @impl true
   def run(params, context) do
     model = Helpers.resolve_model(@model_tier, context)

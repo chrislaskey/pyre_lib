@@ -23,6 +23,30 @@ defmodule Pyre.Actions.PRSetup do
   @artifact_base "04_pr_setup"
   @model_tier :standard
 
+  def action_type, do: "git_pr_setup"
+  def role, do: "shipper"
+
+  def build_messages(params, _state) do
+    {:ok, system_msg} = Persona.system_message(@persona)
+    attachments = Map.get(params, :attachments, [])
+
+    artifacts_content =
+      Helpers.assemble_artifacts([
+        {"03_architecture_plan.md", params.architecture_plan}
+      ])
+
+    user_msg =
+      Persona.user_message(
+        params.feature_description,
+        artifacts_content,
+        params.run_dir,
+        "#{@artifact_base}.md",
+        attachments
+      )
+
+    [system_msg, user_msg]
+  end
+
   @impl true
   def run(params, context) do
     model = Helpers.resolve_model(@model_tier, context)

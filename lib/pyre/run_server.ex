@@ -235,36 +235,61 @@ defmodule Pyre.RunServer do
     stages = workflow_stages(state.workflow)
     session_ids = Pyre.Session.generate_for_stages(stages)
 
-    flow_opts =
-      state.opts
-      |> Keyword.put(:log_fn, fn msg -> GenServer.cast(server, {:log, msg}) end)
-      |> Keyword.put(:output_fn, fn chunk -> GenServer.cast(server, {:output, chunk}) end)
-      |> Keyword.put(:streaming, Keyword.get(state.opts, :streaming, true))
-      |> Keyword.put(:skip_check_fn, fn phase ->
-        GenServer.call(server, {:stage_skipped?, phase})
-      end)
-      |> Keyword.put(:interactive_stage_fn, fn phase ->
-        GenServer.call(server, {:interactive_stage?, phase})
-      end)
-      |> Keyword.put(:await_user_action_fn, fn phase ->
-        GenServer.call(server, {:await_user_action, phase}, @interactive_wait_timeout)
-      end)
-      |> Keyword.put(:session_ids, session_ids)
+    # Select a worker for this run
+    connection_id = select_worker(state.opts)
 
-    flow_module = flow_module(state.workflow)
+    case connection_id do
+      nil ->
+        entry = make_entry(:error, "No compatible worker available")
+        state = append_entry(state, entry)
+        broadcast_event(state.id, entry)
+        broadcast_status(state.id, :error)
 
-    task =
-      Task.Supervisor.async_nolink(Jido.Action.TaskSupervisor, fn ->
-        flow_module.run(state.feature_description, flow_opts)
-      end)
+        state =
+          state
+          |> Map.merge(%{
+            status: :error,
+            completed_at: DateTime.utc_now()
+          })
 
-    state =
-      state
-      |> Map.put(:session_ids, session_ids)
-      |> Map.put(:task_ref, task.ref)
-      |> Map.put(:task_pid, task.pid)
+        update_registry_meta(state)
+        {:noreply, state}
 
-    {:noreply, state}
+      connection_id ->
+        flow_opts =
+          state.opts
+          |> Keyword.put(:log_fn, fn msg -> GenServer.cast(server, {:log, msg}) end)
+          |> Keyword.put(:output_fn, fn chunk -> GenServer.cast(server, {:output, chunk}) end)
+          |> Keyword.put(:streaming, Keyword.get(state.opts, :streaming, true))
+          |> Keyword.put(:skip_check_fn, fn phase ->
+            GenServer.call(server, {:stage_skipped?, phase})
+          end)
+          |> Keyword.put(:interactive_stage_fn, fn phase ->
+            GenServer.call(server, {:interactive_stage?, phase})
+          end)
+          |> Keyword.put(:await_user_action_fn, fn phase ->
+            GenServer.call(server, {:await_user_action, phase}, @interactive_wait_timeout)
+          end)
+          |> Keyword.put(:session_ids, session_ids)
+          |> Keyword.put(:connection_id, connection_id)
+          |> Keyword.put(:dispatch_fn, &dispatch_to_worker/3)
+
+        flow_module = flow_module(state.workflow)
+
+        task =
+          Task.Supervisor.async_nolink(Jido.Action.TaskSupervisor, fn ->
+            flow_module.run(state.feature_description, flow_opts)
+          end)
+
+        state =
+          state
+          |> Map.put(:session_ids, session_ids)
+          |> Map.put(:connection_id, connection_id)
+          |> Map.put(:task_ref, task.ref)
+          |> Map.put(:task_pid, task.pid)
+
+        {:noreply, state}
+    end
   end
 
   @impl true
@@ -530,10 +555,62 @@ defmodule Pyre.RunServer do
       feature_description: state.feature_description,
       started_at: state.started_at,
       completed_at: state.completed_at,
-      waiting_for_input: state.waiting_for_input
+      waiting_for_input: state.waiting_for_input,
+      connection_id: Map.get(state, :connection_id)
     }
 
     Registry.update_value(Pyre.RunRegistry, state.id, fn _old -> meta end)
+  end
+
+  # --- Worker selection and dispatch ---
+
+  defp select_worker(opts) do
+    # Allow tests/callers to pre-select a connection_id, skipping Presence lookup
+    if connection_id = Keyword.get(opts, :connection_id) do
+      connection_id
+    else
+      select_worker_from_presence(opts)
+    end
+  end
+
+  defp select_worker_from_presence(opts) do
+    required_backend = opts |> Keyword.get(:llm) |> backend_name()
+
+    PyreWeb.Presence.list_connections()
+    |> Enum.filter(fn meta ->
+      status = meta["status"] || meta[:status] || "active"
+      capacity = meta["available_capacity"] || meta[:available_capacity] || 0
+      backends = meta["backends"] || meta[:backends] || []
+
+      status == "active" and
+        capacity > 0 and
+        (required_backend == nil or required_backend in backends)
+    end)
+    |> Enum.max_by(
+      fn meta -> meta["available_capacity"] || meta[:available_capacity] || 0 end,
+      fn -> nil end
+    )
+    |> case do
+      nil -> nil
+      meta -> meta["connection_id"] || meta[:connection_id]
+    end
+  end
+
+  defp backend_name(nil), do: nil
+
+  defp backend_name(module) when is_atom(module) do
+    Pyre.Config.backend_name_for_module(module)
+  end
+
+  @doc false
+  def dispatch_to_worker(connection_id, execution_id, payload) do
+    if ps = Application.get_env(:pyre, :pubsub) do
+      Phoenix.PubSub.broadcast(
+        ps,
+        "pyre:action:input:#{connection_id}",
+        {:action, execution_id, payload}
+      )
+    end
   end
 
   defp pubsub do

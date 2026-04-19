@@ -3,67 +3,6 @@ defmodule Pyre.RunServerTest do
 
   @moduletag :capture_log
 
-  defmodule AgentMock do
-    use Pyre.LLM
-
-    @agent_name __MODULE__.Responses
-
-    def setup(responses) do
-      case GenServer.whereis(@agent_name) do
-        nil -> :ok
-        pid -> Agent.stop(pid)
-      end
-
-      {:ok, _pid} = Agent.start_link(fn -> responses end, name: @agent_name)
-      :ok
-    end
-
-    def teardown do
-      case GenServer.whereis(@agent_name) do
-        nil ->
-          :ok
-
-        pid ->
-          try do
-            Agent.stop(pid)
-          catch
-            :exit, _ -> :ok
-          end
-      end
-    end
-
-    defp next do
-      Agent.get_and_update(@agent_name, fn
-        [r | rest] -> {r, rest}
-        [] -> {"Mock response (exhausted)", []}
-      end)
-    end
-
-    @impl true
-    def generate(_model, _messages, _opts \\ []), do: {:ok, next()}
-
-    @impl true
-    def stream(_model, _messages, _opts \\ []), do: {:ok, next()}
-
-    @impl true
-    def chat(_model, _messages, _tools, _opts \\ []) do
-      text = next()
-
-      response = %ReqLLM.Response{
-        id: "mock_#{System.unique_integer([:positive])}",
-        model: "mock",
-        context: ReqLLM.Context.new(),
-        finish_reason: :stop,
-        message: %ReqLLM.Message{
-          role: :assistant,
-          content: [%ReqLLM.Message.ContentPart{type: :text, text: text}]
-        }
-      }
-
-      {:ok, response}
-    end
-  end
-
   setup do
     # Start a local PubSub for testing
     pubsub = Pyre.Test.PubSub
@@ -81,17 +20,69 @@ defmodule Pyre.RunServerTest do
     features_dir = Path.join(tmp_dir, "priv/pyre/features")
     File.mkdir_p!(features_dir)
 
+    # Start the mock worker
+    {:ok, agent} = Agent.start_link(fn -> [] end)
+    {:ok, worker} = start_mock_worker(pubsub, "test-conn", agent)
+
     on_exit(fn ->
-      AgentMock.teardown()
       Application.delete_env(:pyre, :pubsub)
       File.rm_rf!(tmp_dir)
     end)
 
-    %{tmp_dir: tmp_dir, pubsub: pubsub}
+    %{tmp_dir: tmp_dir, pubsub: pubsub, response_agent: agent, worker: worker}
   end
 
-  test "start_run/2 returns {:ok, id} where id is 8-char hex", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  defp set_responses(agent, responses) do
+    Agent.update(agent, fn _ -> responses end)
+  end
+
+  defp start_mock_worker(pubsub, connection_id, response_agent) do
+    pid =
+      spawn_link(fn ->
+        Phoenix.PubSub.subscribe(pubsub, "pyre:action:input:#{connection_id}")
+        mock_worker_loop(pubsub, response_agent)
+      end)
+
+    # Give the subscription time to register
+    Process.sleep(10)
+    {:ok, pid}
+  end
+
+  defp mock_worker_loop(pubsub, response_agent) do
+    receive do
+      {:action, execution_id, _payload} ->
+        response =
+          Agent.get_and_update(response_agent, fn
+            [r | rest] -> {r, rest}
+            [] -> {"Mock response (exhausted)", []}
+          end)
+
+        Phoenix.PubSub.broadcast(
+          pubsub,
+          "pyre:action:output:#{execution_id}",
+          {:action_complete,
+           %{"execution_id" => execution_id, "status" => "ok", "result_text" => response}}
+        )
+
+        mock_worker_loop(pubsub, response_agent)
+
+      {:action_continue, _execution_id, _payload} ->
+        # Interactive continue — respond again
+        mock_worker_loop(pubsub, response_agent)
+
+      {:action_finish, _execution_id} ->
+        # Interactive finish — no response needed
+        mock_worker_loop(pubsub, response_agent)
+    after
+      30_000 -> :timeout
+    end
+  end
+
+  test "start_run/2 returns {:ok, id} where id is 8-char hex", %{
+    tmp_dir: tmp_dir,
+    response_agent: agent
+  } do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -103,9 +94,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     assert is_binary(id)
@@ -116,8 +108,8 @@ defmodule Pyre.RunServerTest do
     wait_for_status(id, :complete)
   end
 
-  test "get_state/1 returns state with correct fields", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "get_state/1 returns state with correct fields", %{tmp_dir: tmp_dir, response_agent: agent} do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -129,9 +121,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     {:ok, state} = Pyre.RunServer.get_state(id)
@@ -143,8 +136,8 @@ defmodule Pyre.RunServerTest do
     wait_for_status(id, :complete)
   end
 
-  test "get_log/1 returns buffered entries", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "get_log/1 returns buffered entries", %{tmp_dir: tmp_dir, response_agent: agent} do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -156,9 +149,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     wait_for_status(id, :complete)
@@ -169,8 +163,8 @@ defmodule Pyre.RunServerTest do
     assert Enum.all?(log, &(is_map(&1) and Map.has_key?(&1, :id)))
   end
 
-  test "list_runs/0 includes started run with summary", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "list_runs/0 includes started run with summary", %{tmp_dir: tmp_dir, response_agent: agent} do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -182,9 +176,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     runs = Pyre.RunServer.list_runs()
@@ -197,8 +192,12 @@ defmodule Pyre.RunServerTest do
     wait_for_status(id, :complete)
   end
 
-  test "PubSub events are received by subscribers", %{tmp_dir: tmp_dir, pubsub: pubsub} do
-    AgentMock.setup([
+  test "PubSub events are received by subscribers", %{
+    tmp_dir: tmp_dir,
+    pubsub: pubsub,
+    response_agent: agent
+  } do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -210,9 +209,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     Phoenix.PubSub.subscribe(pubsub, "pyre:runs:#{id}")
@@ -224,8 +224,11 @@ defmodule Pyre.RunServerTest do
     refute Enum.empty?(messages)
   end
 
-  test "completed run has :complete status and 'Pipeline complete.' in log", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "completed run has :complete status and 'Pipeline complete.' in log", %{
+    tmp_dir: tmp_dir,
+    response_agent: agent
+  } do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -237,9 +240,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     wait_for_status(id, :complete)
@@ -253,10 +257,10 @@ defmodule Pyre.RunServerTest do
     assert Enum.any?(contents, &(&1 == "Pipeline complete."))
   end
 
-  test "skipped stages use best practices fallback", %{tmp_dir: tmp_dir} do
+  test "skipped stages use best practices fallback", %{tmp_dir: tmp_dir, response_agent: agent} do
     # Only need 4 mock responses: product_manager, programmer, test_writer, shipper
     # designer and code_reviewer are skipped (skipped reviewer gives approve fallback → shipping)
-    AgentMock.setup([
+    set_responses(agent, [
       "Req.",
       "Impl.",
       "Tests.",
@@ -266,10 +270,11 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
         project_dir: tmp_dir,
-        skipped_stages: [:designing, :reviewing]
+        skipped_stages: [:designing, :reviewing],
+        connection_id: "test-conn"
       )
 
     wait_for_status(id, :complete)
@@ -285,8 +290,8 @@ defmodule Pyre.RunServerTest do
     assert Enum.any?(contents, &String.contains?(&1, "Skipping: code_reviewer"))
   end
 
-  test "toggle_stage/2 adds and removes stages", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "toggle_stage/2 adds and removes stages", %{tmp_dir: tmp_dir, response_agent: agent} do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -298,9 +303,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     # Initially no skipped stages
@@ -329,9 +335,10 @@ defmodule Pyre.RunServerTest do
   end
 
   test "get_state/1 includes interactive_stages and waiting_for_input fields", %{
-    tmp_dir: tmp_dir
+    tmp_dir: tmp_dir,
+    response_agent: agent
   } do
-    AgentMock.setup([
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -343,9 +350,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     {:ok, state} = Pyre.RunServer.get_state(id)
@@ -356,8 +364,11 @@ defmodule Pyre.RunServerTest do
     wait_for_status(id, :complete)
   end
 
-  test "toggle_interactive_stage/2 adds and removes stages", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "toggle_interactive_stage/2 adds and removes stages", %{
+    tmp_dir: tmp_dir,
+    response_agent: agent
+  } do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -369,9 +380,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     {:ok, state} = Pyre.RunServer.get_state(id)
@@ -390,8 +402,11 @@ defmodule Pyre.RunServerTest do
     wait_for_status(id, :complete)
   end
 
-  test "send_reply/2 is a no-op when not waiting for input", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "send_reply/2 is a no-op when not waiting for input", %{
+    tmp_dir: tmp_dir,
+    response_agent: agent
+  } do
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -403,9 +418,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     # Should not crash — guard ignores user_action when waiting_for_input == false
@@ -417,11 +433,18 @@ defmodule Pyre.RunServerTest do
 
   test "interactive flow: send_reply unblocks waiting stage then continue advances", %{
     tmp_dir: tmp_dir,
-    pubsub: pubsub
+    pubsub: pubsub,
+    response_agent: _agent
   } do
-    # This mock returns responses in sequence. After a reply is sent the flow
-    # calls chat/4 again with --resume, which consumes the next response.
-    AgentMock.setup([
+    # For the interactive test, we need a special mock worker that handles
+    # action_continue messages (re-dispatches results for resumed sessions)
+    {:ok, interactive_agent} = Agent.start_link(fn -> [] end)
+
+    # Stop existing worker and start interactive one
+    {:ok, interactive_worker} =
+      start_interactive_mock_worker(pubsub, "test-interactive", interactive_agent)
+
+    set_responses(interactive_agent, [
       # architecting (interactive by default) — initial call
       "Architecture plan.",
       # architecting — resume call with user reply
@@ -436,14 +459,13 @@ defmodule Pyre.RunServerTest do
       "Final implementation summary."
     ])
 
-    Phoenix.PubSub.subscribe(pubsub, "pyre:runs:#{:waiting_test}")
-
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-interactive"
       )
 
     # Feature flow defaults to interactive architecting + engineering stages
@@ -473,13 +495,16 @@ defmodule Pyre.RunServerTest do
     {:ok, final_state} = Pyre.RunServer.get_state(id)
     assert final_state.status == :complete
     assert final_state.waiting_for_input == false
+
+    Process.exit(interactive_worker, :normal)
   end
 
   test "toggle_interactive_stage/2 broadcasts pyre_interactive_stages", %{
     tmp_dir: tmp_dir,
-    pubsub: pubsub
+    pubsub: pubsub,
+    response_agent: agent
   } do
-    AgentMock.setup([
+    set_responses(agent, [
       "Req.",
       "Design.",
       "Impl.",
@@ -491,9 +516,10 @@ defmodule Pyre.RunServerTest do
     {:ok, id} =
       Pyre.RunServer.start_run("Build a page",
         workflow: :overnight_feature,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     Phoenix.PubSub.subscribe(pubsub, "pyre:runs:#{id}")
@@ -506,17 +532,27 @@ defmodule Pyre.RunServerTest do
     # so we only assert the broadcast here, not flow completion.
   end
 
-  test "chat workflow uses default interactive stages", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "chat workflow uses default interactive stages", %{
+    tmp_dir: tmp_dir,
+    pubsub: pubsub,
+    response_agent: _agent
+  } do
+    # Chat's interactive mock worker needs to handle continue/finish messages
+    {:ok, chat_agent} = Agent.start_link(fn -> [] end)
+    {:ok, chat_worker} = start_interactive_mock_worker(pubsub, "test-chat", chat_agent)
+
+    set_responses(chat_agent, [
       "Generalist output."
+      # Finalize response (not used since continue with 0 replies sends finish)
     ])
 
     {:ok, id} =
       Pyre.RunServer.start_run("Help me debug this",
         workflow: :chat,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-chat"
       )
 
     {:ok, state} = Pyre.RunServer.get_state(id)
@@ -533,20 +569,25 @@ defmodule Pyre.RunServerTest do
 
     {:ok, final_state} = Pyre.RunServer.get_state(id)
     assert final_state.status == :complete
-    assert final_state.phase == :generalist
+
+    Process.exit(chat_worker, :normal)
   end
 
-  test "prototype workflow uses default interactive stages", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "prototype workflow uses default interactive stages", %{tmp_dir: tmp_dir, pubsub: pubsub} do
+    {:ok, proto_agent} = Agent.start_link(fn -> [] end)
+    {:ok, proto_worker} = start_interactive_mock_worker(pubsub, "test-proto", proto_agent)
+
+    set_responses(proto_agent, [
       "Prototype output."
     ])
 
     {:ok, id} =
       Pyre.RunServer.start_run("Build a prototype",
         workflow: :prototype,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-proto"
       )
 
     {:ok, state} = Pyre.RunServer.get_state(id)
@@ -562,19 +603,22 @@ defmodule Pyre.RunServerTest do
 
     {:ok, final_state} = Pyre.RunServer.get_state(id)
     assert final_state.status == :complete
+
+    Process.exit(proto_worker, :normal)
   end
 
-  test "task workflow is not interactive by default", %{tmp_dir: tmp_dir} do
-    AgentMock.setup([
+  test "task workflow is not interactive by default", %{tmp_dir: tmp_dir, response_agent: agent} do
+    set_responses(agent, [
       "Task output."
     ])
 
     {:ok, id} =
       Pyre.RunServer.start_run("Add pagination",
         workflow: :task,
-        llm: AgentMock,
+        llm: Pyre.LLM.Mock,
         streaming: false,
-        project_dir: tmp_dir
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
       )
 
     {:ok, state} = Pyre.RunServer.get_state(id)
@@ -588,7 +632,78 @@ defmodule Pyre.RunServerTest do
     assert final_state.status == :complete
   end
 
+  test "connection_id is stored in run state", %{tmp_dir: tmp_dir, response_agent: agent} do
+    set_responses(agent, ["Task output."])
+
+    {:ok, id} =
+      Pyre.RunServer.start_run("Add pagination",
+        workflow: :task,
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
+      )
+
+    wait_for_status(id, :complete)
+
+    {:ok, state} = Pyre.RunServer.get_state(id)
+    assert state.connection_id == "test-conn"
+  end
+
   # --- Helpers ---
+
+  defp start_interactive_mock_worker(pubsub, connection_id, response_agent) do
+    pid =
+      spawn_link(fn ->
+        Phoenix.PubSub.subscribe(pubsub, "pyre:action:input:#{connection_id}")
+        interactive_worker_loop(pubsub, response_agent, nil)
+      end)
+
+    Process.sleep(10)
+    {:ok, pid}
+  end
+
+  defp interactive_worker_loop(pubsub, response_agent, _current_execution_id) do
+    receive do
+      {:action, execution_id, _payload} ->
+        response =
+          Agent.get_and_update(response_agent, fn
+            [r | rest] -> {r, rest}
+            [] -> {"Mock response (exhausted)", []}
+          end)
+
+        Phoenix.PubSub.broadcast(
+          pubsub,
+          "pyre:action:output:#{execution_id}",
+          {:action_complete,
+           %{"execution_id" => execution_id, "status" => "ok", "result_text" => response}}
+        )
+
+        interactive_worker_loop(pubsub, response_agent, execution_id)
+
+      {:action_continue, execution_id, _payload} ->
+        # Respond to the continue with the next mock response
+        response =
+          Agent.get_and_update(response_agent, fn
+            [r | rest] -> {r, rest}
+            [] -> {"Mock response (exhausted)", []}
+          end)
+
+        Phoenix.PubSub.broadcast(
+          pubsub,
+          "pyre:action:output:#{execution_id}",
+          {:action_complete,
+           %{"execution_id" => execution_id, "status" => "ok", "result_text" => response}}
+        )
+
+        interactive_worker_loop(pubsub, response_agent, execution_id)
+
+      {:action_finish, _execution_id} ->
+        interactive_worker_loop(pubsub, response_agent, nil)
+    after
+      30_000 -> :timeout
+    end
+  end
 
   defp wait_for_status(id, expected_status, timeout \\ 15_000) do
     deadline = System.monotonic_time(:millisecond) + timeout

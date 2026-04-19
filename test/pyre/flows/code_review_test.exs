@@ -12,7 +12,28 @@ defmodule Pyre.Flows.CodeReviewTest do
     features_dir = Path.join(tmp_dir, "priv/pyre/features")
     File.mkdir_p!(features_dir)
     on_exit(fn -> File.rm_rf!(tmp_dir) end)
-    %{tmp_dir: tmp_dir}
+
+    {:ok, agent} = Agent.start_link(fn -> [] end)
+
+    dispatch_fn = fn _conn_id, exec_id, _payload ->
+      caller = self()
+
+      spawn(fn ->
+        response =
+          Agent.get_and_update(agent, fn
+            [r | rest] -> {r, rest}
+            [] -> {"Mock response (exhausted)", []}
+          end)
+
+        send(
+          caller,
+          {:action_complete,
+           %{"execution_id" => exec_id, "status" => "ok", "result_text" => response}}
+        )
+      end)
+    end
+
+    %{tmp_dir: tmp_dir, dispatch_fn: dispatch_fn, response_agent: agent}
   end
 
   defp with_cwd(dir, fun) do
@@ -26,9 +47,17 @@ defmodule Pyre.Flows.CodeReviewTest do
     end
   end
 
-  test "runs review to completion with approve verdict", %{tmp_dir: tmp_dir} do
+  defp set_responses(agent, responses) do
+    Agent.update(agent, fn _ -> responses end)
+  end
+
+  test "runs review to completion with approve verdict", %{
+    tmp_dir: tmp_dir,
+    dispatch_fn: dispatch_fn,
+    response_agent: agent
+  } do
     capture_io(fn ->
-      Process.put(:mock_llm_responses, [
+      set_responses(agent, [
         "APPROVE\n\nGreat work!"
       ])
 
@@ -37,7 +66,9 @@ defmodule Pyre.Flows.CodeReviewTest do
           CodeReview.run("Review the authentication changes",
             llm: Pyre.LLM.Mock,
             streaming: false,
-            project_dir: tmp_dir
+            project_dir: tmp_dir,
+            connection_id: "test-conn",
+            dispatch_fn: dispatch_fn
           )
         end)
 
@@ -48,7 +79,7 @@ defmodule Pyre.Flows.CodeReviewTest do
     end)
   end
 
-  test "dry run skips LLM calls", %{tmp_dir: tmp_dir} do
+  test "dry run skips LLM calls", %{tmp_dir: tmp_dir, dispatch_fn: dispatch_fn} do
     capture_io(fn ->
       result =
         with_cwd(tmp_dir, fn ->
@@ -56,7 +87,9 @@ defmodule Pyre.Flows.CodeReviewTest do
             llm: Pyre.LLM.Mock,
             streaming: false,
             dry_run: true,
-            project_dir: tmp_dir
+            project_dir: tmp_dir,
+            connection_id: "test-conn",
+            dispatch_fn: dispatch_fn
           )
         end)
 
@@ -65,25 +98,35 @@ defmodule Pyre.Flows.CodeReviewTest do
     end)
   end
 
-  test "propagates error from a failing action", %{tmp_dir: tmp_dir} do
-    defmodule FailingLLM do
-      use Pyre.LLM
+  test "propagates error from dispatch", %{tmp_dir: tmp_dir} do
+    error_dispatch_fn = fn _conn_id, exec_id, _payload ->
+      caller = self()
 
-      def generate(_, _, _ \\ []), do: {:error, :llm_failure}
-      def stream(_, _, _ \\ []), do: {:error, :llm_failure}
-      def chat(_, _, _, _ \\ []), do: {:error, :llm_failure}
+      spawn(fn ->
+        send(
+          caller,
+          {:action_complete,
+           %{"execution_id" => exec_id, "status" => "error", "result_text" => "execution failed"}}
+        )
+      end)
     end
 
     result =
       with_cwd(tmp_dir, fn ->
         CodeReview.run("Review changes",
-          llm: FailingLLM,
+          llm: Pyre.LLM.Mock,
           streaming: false,
           project_dir: tmp_dir,
-          log_fn: fn _ -> :ok end
+          log_fn: fn _ -> :ok end,
+          connection_id: "test-conn",
+          dispatch_fn: error_dispatch_fn
         )
       end)
 
-    assert {:error, :llm_failure} = result
+    assert {:error, _} = result
+  end
+
+  test "is not interactive by default" do
+    assert CodeReview.default_interactive_stages() == []
   end
 end

@@ -22,6 +22,30 @@ defmodule Pyre.Actions.Designer do
   @artifact_base "02_design_spec"
   @model_tier :standard
 
+  def action_type, do: "prompt"
+  def role, do: "designer"
+
+  def build_messages(params, _state) do
+    {:ok, system_msg} = Persona.system_message(@persona)
+    attachments = Map.get(params, :attachments, [])
+
+    artifacts_content =
+      Helpers.assemble_artifacts([
+        {"01_requirements.md", params.requirements}
+      ])
+
+    user_msg =
+      Persona.user_message(
+        params.feature_description,
+        artifacts_content,
+        params.run_dir,
+        "#{@artifact_base}.md",
+        attachments
+      )
+
+    [system_msg, user_msg]
+  end
+
   @impl true
   def run(params, context) do
     model = Helpers.resolve_model(@model_tier, context)

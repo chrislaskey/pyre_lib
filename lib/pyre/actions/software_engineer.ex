@@ -24,6 +24,31 @@ defmodule Pyre.Actions.SoftwareEngineer do
   @summary_artifact "06_implementation_summary"
   @model_tier :advanced
 
+  def action_type, do: "prompt"
+  def role, do: "software_engineer"
+
+  def build_messages(params, _state) do
+    {:ok, system_msg} = Persona.system_message(@persona)
+    attachments = Map.get(params, :attachments, [])
+
+    artifacts_content =
+      Helpers.assemble_artifacts([
+        {"03_architecture_plan.md", params.architecture_plan},
+        {"04_pr_setup.md", params.pr_setup}
+      ])
+
+    user_msg =
+      Persona.user_message(
+        params.feature_description,
+        artifacts_content,
+        params.run_dir,
+        "05_engineer_progress.md",
+        attachments
+      )
+
+    [system_msg, user_msg]
+  end
+
   @impl true
   def run(params, context) do
     model = Helpers.resolve_model(@model_tier, context)

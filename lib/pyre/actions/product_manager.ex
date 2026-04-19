@@ -21,6 +21,25 @@ defmodule Pyre.Actions.ProductManager do
   @artifact_base "01_requirements"
   @model_tier :standard
 
+  def action_type, do: "prompt"
+  def role, do: "product_manager"
+
+  def build_messages(params, _state) do
+    {:ok, system_msg} = Persona.system_message(@persona)
+    attachments = Map.get(params, :attachments, [])
+
+    user_msg =
+      Persona.user_message(
+        params.feature_description,
+        "",
+        params.run_dir,
+        "#{@artifact_base}.md",
+        attachments
+      )
+
+    [system_msg, user_msg]
+  end
+
   @impl true
   def run(params, context) do
     model = Helpers.resolve_model(@model_tier, context)

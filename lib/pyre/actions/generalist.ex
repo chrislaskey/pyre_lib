@@ -21,6 +21,25 @@ defmodule Pyre.Actions.Generalist do
   @artifact_base "01_generalist_output"
   @model_tier :advanced
 
+  def action_type, do: "prompt"
+  def role, do: "generalist"
+
+  def build_messages(params, _state) do
+    {:ok, system_msg} = Persona.system_message(@persona)
+    attachments = Map.get(params, :attachments, [])
+
+    user_msg =
+      Persona.user_message(
+        params.feature_description,
+        "",
+        params.run_dir,
+        "#{@artifact_base}.md",
+        attachments
+      )
+
+    [system_msg, user_msg]
+  end
+
   @impl true
   def run(params, context) do
     model = Helpers.resolve_model(@model_tier, context)

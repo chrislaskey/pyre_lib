@@ -35,6 +35,34 @@ defmodule Pyre.Actions.Shipper do
   @artifact_base "06_shipping_summary"
   @model_tier :standard
 
+  def action_type, do: "git_ship"
+  def role, do: "shipper"
+
+  def build_messages(params, _state) do
+    {:ok, system_msg} = Persona.system_message(@persona)
+    attachments = Map.get(params, :attachments, [])
+
+    artifacts_content =
+      Helpers.assemble_artifacts([
+        {"01_requirements.md", params.requirements},
+        {"02_design_spec.md", params.design},
+        {"03_implementation_summary.md", params.implementation},
+        {"04_test_summary.md", params.tests},
+        {"05_review_verdict.md", params.verdict_text}
+      ])
+
+    user_msg =
+      Persona.user_message(
+        params.feature_description,
+        artifacts_content,
+        params.run_dir,
+        "#{@artifact_base}.md",
+        attachments
+      )
+
+    [system_msg, user_msg]
+  end
+
   @impl true
   def run(params, context) do
     model = Helpers.resolve_model(@model_tier, context)
