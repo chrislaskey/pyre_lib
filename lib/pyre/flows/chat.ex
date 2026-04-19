@@ -79,7 +79,7 @@ defmodule Pyre.Flows.Chat do
       allowed_paths = [feature_dir | allowed_paths]
 
       context = %{
-        llm: Keyword.get(opts, :llm, Pyre.LLM.default()),
+        llm: Keyword.get(opts, :llm),
         streaming: streaming?,
         output_fn: Keyword.get(opts, :output_fn, &IO.write/1),
         log_fn: Keyword.get(opts, :log_fn, &IO.puts/1),

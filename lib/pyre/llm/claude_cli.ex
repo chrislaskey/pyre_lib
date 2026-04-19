@@ -13,15 +13,6 @@ defmodule Pyre.LLM.ClaudeCLI do
 
       npm install -g @anthropic-ai/claude-code
 
-  ## Configuration
-
-      # Select as default backend via env var:
-      PYRE_LLM_BACKEND=claude_cli
-
-      # Or in your Pyre.Config module:
-      @impl true
-      def get_llm_backend(_arg), do: Pyre.LLM.ClaudeCLI
-
   ## Cost
 
   When authenticated via `claude auth login` (Pro/Max subscription),

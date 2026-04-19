@@ -70,13 +70,9 @@ defmodule Pyre.Actions.HelpersTest do
       assert {:ok, "Streamed text"} = Helpers.call_llm(context, "model", [])
     end
 
-    test "defaults to Pyre.LLM.ReqLLM when :llm not in context" do
-      # Just verify it doesn't crash when accessing missing :llm key
+    test "returns nil when :llm not in context" do
       context = %{streaming: false}
-
-      # This would fail because Pyre.LLM.ReqLLM requires real API, but the
-      # fallback logic itself works. We test the key resolution only.
-      assert Map.get(context, :llm, Pyre.LLM.default()) == Pyre.LLM.ReqLLM
+      assert Map.get(context, :llm) == nil
     end
   end
 

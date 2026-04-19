@@ -278,37 +278,28 @@ defmodule PyreWeb.RunShowLive do
         </span>
       </div>
       <div class="p-4">
-        <%= if backend_supports_replies?(@backend) do %>
-          <form phx-submit="send_reply" phx-change="update_reply">
-            <textarea
-              name="reply"
-              rows="3"
-              class="textarea textarea-bordered w-full font-mono text-sm mb-3"
-              placeholder="Type your reply..."
-              value={@reply_text}
-              autofocus
-            ></textarea>
-            <div class="flex justify-between items-center">
-              <button type="submit" class="btn btn-secondary btn-sm" disabled={@reply_text == ""}>
-                Send Reply
-              </button>
-              <button
-                type="button"
-                phx-click="continue_stage"
-                class="btn btn-ghost btn-sm"
-              >
-                Mark complete and continue &rarr;
-              </button>
-            </div>
-          </form>
-        <% else %>
-          <p class="text-sm text-base-content/50 mb-3">
-            Interactive replies require a backend that supports resuming sessions. The current backend is not configured for it.
-          </p>
-          <button phx-click="continue_stage" class="btn btn-ghost btn-sm">
-            Mark complete and continue &rarr;
-          </button>
-        <% end %>
+        <form phx-submit="send_reply" phx-change="update_reply">
+          <textarea
+            name="reply"
+            rows="3"
+            class="textarea textarea-bordered w-full font-mono text-sm mb-3"
+            placeholder="Type your reply..."
+            value={@reply_text}
+            autofocus
+          ></textarea>
+          <div class="flex justify-between items-center">
+            <button type="submit" class="btn btn-secondary btn-sm" disabled={@reply_text == ""}>
+              Send Reply
+            </button>
+            <button
+              type="button"
+              phx-click="continue_stage"
+              class="btn btn-ghost btn-sm"
+            >
+              Mark complete and continue &rarr;
+            </button>
+          </div>
+        </form>
       </div>
     </div>
     """
@@ -448,7 +439,6 @@ defmodule PyreWeb.RunShowLive do
       interactive_stages: Map.get(run, :interactive_stages, MapSet.new()),
       waiting_for_input: Map.get(run, :waiting_for_input, false),
       waiting_phase: Map.get(run, :phase),
-      backend: Map.get(run, :backend, "other"),
       raw_session_ids: raw_session_ids,
       session_ids: resolve_session_ids(raw_session_ids),
       phases: phases,
@@ -462,21 +452,6 @@ defmodule PyreWeb.RunShowLive do
       {phase, backend_id || pyre_id}
     end)
   end
-
-  defp backend_supports_replies?(backend_name) when is_binary(backend_name) do
-    backends = apply(Pyre.Config, :list_llm_backends, [])
-
-    case apply(Pyre.Config, :find_backend_by_name, [backends, backend_name]) do
-      {:ok, %{module: mod}} ->
-        Code.ensure_loaded?(mod) and function_exported?(mod, :manages_tool_loop?, 0) and
-          mod.manages_tool_loop?()
-
-      :error ->
-        false
-    end
-  end
-
-  defp backend_supports_replies?(_), do: false
 
   defp authorize_control(action, socket) do
     case Pyre.Config.authorize(:authorize_run_control, [action, socket]) do

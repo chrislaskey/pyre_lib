@@ -86,7 +86,7 @@ defmodule Pyre.RemoteReview do
            Pyre.GitHub.get_pull_request_diff(ctx.owner, ctx.repo, ctx.pr_number, token) do
       description = build_explain_prompt(pr, diff)
 
-      llm = Pyre.LLM.default()
+      llm = Pyre.LLM.ReqLLM
       model = Pyre.Actions.Helpers.resolve_model(:standard, %{})
       messages = [%{role: :user, content: description}]
 
@@ -109,7 +109,7 @@ defmodule Pyre.RemoteReview do
            Pyre.GitHub.get_pull_request_diff(ctx.owner, ctx.repo, ctx.pr_number, token) do
       description = build_followup_prompt(pr, diff, text)
 
-      llm = Pyre.LLM.default()
+      llm = Pyre.LLM.ReqLLM
       model = Pyre.Actions.Helpers.resolve_model(:standard, %{})
       messages = [%{role: :user, content: description}]
 

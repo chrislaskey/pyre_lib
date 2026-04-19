@@ -29,8 +29,8 @@ defmodule Pyre.LLM do
 
   ## Backend selection
 
-  The default backend is determined by `Pyre.Config.get_llm_backend/1`.
-  The `:llm` key in action context can override it per-call.
+  The `:llm` key in action context specifies the backend per-call.
+  Workers configure their own backends.
   """
 
   @type message :: %{role: :system | :user | :assistant, content: String.t() | [map()]}
@@ -97,45 +97,6 @@ defmodule Pyre.LLM do
       @impl Pyre.LLM
       def manages_tool_loop?, do: false
       defoverridable manages_tool_loop?: 0
-    end
-  end
-
-  @doc """
-  Returns the default LLM module.
-
-  Delegates to `Pyre.Config.get_llm_backend/1`.
-  """
-  def default do
-    Pyre.Config.get_llm_backend(nil)
-  end
-
-  @doc """
-  Validates that the configured default backend implements required callbacks.
-
-  Called automatically at application startup by `Pyre.Application`.
-  Raises `ArgumentError` with a clear message if the backend is missing
-  required callbacks.
-  """
-  def validate_backend! do
-    mod = default()
-    Code.ensure_loaded!(mod)
-    required = [{:generate, 3}, {:stream, 3}, {:chat, 4}]
-
-    missing =
-      Enum.reject(required, fn {fun, arity} ->
-        function_exported?(mod, fun, arity)
-      end)
-
-    case missing do
-      [] ->
-        :ok
-
-      fns ->
-        names = Enum.map_join(fns, ", ", fn {f, a} -> "#{f}/#{a}" end)
-
-        raise ArgumentError,
-              "Configured LLM backend #{inspect(mod)} is missing: #{names}. " <>
-                "Use `use Pyre.LLM` and implement the required callbacks."
     end
   end
 end

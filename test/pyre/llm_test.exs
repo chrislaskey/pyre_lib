@@ -42,41 +42,4 @@ defmodule Pyre.LLMTest do
       assert function_exported?(MinimalBackend, :manages_tool_loop?, 0)
     end
   end
-
-  describe "default/0" do
-    test "delegates to Pyre.Config.get_llm_backend/1" do
-      assert is_atom(Pyre.LLM.default())
-    end
-  end
-
-  describe "validate_backend!/0" do
-    setup do
-      original = Application.get_env(:pyre, :config)
-      on_exit(fn -> Application.put_env(:pyre, :config, original) end)
-      :ok
-    end
-
-    test "succeeds with a valid backend" do
-      assert :ok = Pyre.LLM.validate_backend!()
-    end
-
-    test "raises for a module missing required callbacks" do
-      defmodule IncompleteBackend do
-        def manages_tool_loop?, do: false
-      end
-
-      defmodule BadConfig do
-        use Pyre.Config
-
-        @impl true
-        def get_llm_backend(_arg), do: IncompleteBackend
-      end
-
-      Application.put_env(:pyre, :config, BadConfig)
-
-      assert_raise ArgumentError, ~r/missing: generate\/3, stream\/3, chat\/4/, fn ->
-        Pyre.LLM.validate_backend!()
-      end
-    end
-  end
 end

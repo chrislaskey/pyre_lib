@@ -30,7 +30,7 @@ defmodule Pyre.Actions.Helpers do
   to `Pyre.Tools.AgenticLoop` for multi-turn tool-use conversations.
   """
   def call_llm(context, model, messages, opts \\ []) do
-    llm = Map.get(context, :llm, Pyre.LLM.default())
+    llm = Map.get(context, :llm)
     streaming? = Map.get(context, :streaming, true)
     tools = Keyword.get(opts, :tools, [])
 

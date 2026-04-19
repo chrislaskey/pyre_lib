@@ -58,22 +58,6 @@ defmodule PyreWeb.RunNewLiveTest do
     refute html =~ "Programmer"
   end
 
-  test "renders LLM backend selector with API default", %{conn: conn} do
-    {:ok, _view, html} = live(conn, "/pyre/runs/new")
-    assert html =~ "LLM Backend"
-    assert html =~ "API (ReqLLM)"
-    assert html =~ "Claude CLI"
-  end
-
-  test "switching to Claude CLI backend", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/pyre/runs/new")
-
-    html = render_click(view, "select_backend", %{"backend" => "claude_cli"})
-
-    assert html =~ "Claude CLI"
-    assert html =~ "claude_cli"
-  end
-
   test "switching to feature workflow shows feature stages", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/pyre/runs/new")
 

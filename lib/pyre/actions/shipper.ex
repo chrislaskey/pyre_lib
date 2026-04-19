@@ -288,7 +288,7 @@ defmodule Pyre.Actions.Shipper do
   end
 
   defp manages_own_tools?(context) do
-    llm = Map.get(context, :llm, Pyre.LLM.default())
+    llm = Map.get(context, :llm)
     llm.manages_tool_loop?()
   end
 

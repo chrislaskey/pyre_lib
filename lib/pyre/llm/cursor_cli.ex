@@ -19,15 +19,6 @@ defmodule Pyre.LLM.CursorCLI do
       cursor-agent login              # browser flow (recommended)
       export CURSOR_API_KEY=<key>     # API key for headless/CI
 
-  ## Configuration
-
-      # Select as default backend via env var:
-      PYRE_LLM_BACKEND=cursor_cli
-
-      # Or in your Pyre.Config module:
-      @impl true
-      def get_llm_backend(_arg), do: Pyre.LLM.CursorCLI
-
   ## Session Persistence (Option E — Hybrid Warm-Up)
 
   cursor-agent cannot accept a pre-specified session ID on the first call

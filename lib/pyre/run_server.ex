@@ -198,10 +198,6 @@ defmodule Pyre.RunServer do
             else: MapSet.new()
       end
 
-    llm = Keyword.get(opts, :llm, Pyre.LLM.default())
-
-    backend = Pyre.Config.backend_name_for_module(llm)
-
     initial_phase = hd(workflow_stages(workflow))
 
     state = %{
@@ -209,7 +205,6 @@ defmodule Pyre.RunServer do
       status: :running,
       phase: initial_phase,
       workflow: workflow,
-      backend: backend,
       feature: Keyword.get(opts, :feature),
       feature_description: feature_description,
       log: [],
@@ -550,7 +545,6 @@ defmodule Pyre.RunServer do
       status: state.status,
       phase: state.phase,
       workflow: state.workflow,
-      backend: state.backend,
       feature: state.feature,
       feature_description: state.feature_description,
       started_at: state.started_at,
@@ -573,18 +567,13 @@ defmodule Pyre.RunServer do
     end
   end
 
-  defp select_worker_from_presence(opts) do
-    required_backend = opts |> Keyword.get(:llm) |> backend_name()
-
+  defp select_worker_from_presence(_opts) do
     PyreWeb.Presence.list_connections()
     |> Enum.filter(fn meta ->
       status = meta["status"] || meta[:status] || "active"
       capacity = meta["available_capacity"] || meta[:available_capacity] || 0
-      backends = meta["backends"] || meta[:backends] || []
 
-      status == "active" and
-        capacity > 0 and
-        (required_backend == nil or required_backend in backends)
+      status == "active" and capacity > 0
     end)
     |> Enum.max_by(
       fn meta -> meta["available_capacity"] || meta[:available_capacity] || 0 end,
@@ -594,12 +583,6 @@ defmodule Pyre.RunServer do
       nil -> nil
       meta -> meta["connection_id"] || meta[:connection_id]
     end
-  end
-
-  defp backend_name(nil), do: nil
-
-  defp backend_name(module) when is_atom(module) do
-    Pyre.Config.backend_name_for_module(module)
   end
 
   @doc false

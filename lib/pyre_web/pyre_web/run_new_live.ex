@@ -9,10 +9,6 @@ defmodule PyreWeb.RunNewLive do
     workflows = apply(Pyre.Config, :list_workflows, [])
     default_entry = Enum.find(workflows, fn w -> w.name == :chat end) || hd(workflows)
 
-    backends = apply(Pyre.Config, :list_llm_backends, [])
-    default_module = apply(Pyre.Config, :get_llm_backend, [nil])
-    default_name = apply(Pyre.Config, :backend_name_for_module, [default_module])
-
     socket =
       socket
       |> assign(
@@ -24,9 +20,7 @@ defmodule PyreWeb.RunNewLive do
         workflow: default_entry.name,
         toggleable_stages: default_entry.stages,
         skipped_stages: MapSet.new(),
-        interactive_stages: default_interactive_for(default_entry),
-        backends: backends,
-        llm_backend: default_name
+        interactive_stages: default_interactive_for(default_entry)
       )
       |> allow_upload(:attachments,
         accept: ~w(.txt .md .csv .json .html .css .js .png .jpg .jpeg .gif .webp),
@@ -106,10 +100,6 @@ defmodule PyreWeb.RunNewLive do
     {:noreply, assign(socket, interactive_stages: interactive)}
   end
 
-  def handle_event("select_backend", %{"backend" => backend}, socket) do
-    {:noreply, assign(socket, llm_backend: backend)}
-  end
-
   def handle_event("cancel-upload", %{"ref" => ref}, socket) do
     {:noreply, cancel_upload(socket, :attachments, ref)}
   end
@@ -126,7 +116,6 @@ defmodule PyreWeb.RunNewLive do
       run_params = %{
         description: desc,
         workflow: socket.assigns.workflow,
-        llm_backend: socket.assigns.llm_backend,
         feature: feature
       }
 
@@ -159,14 +148,11 @@ defmodule PyreWeb.RunNewLive do
     skipped = MapSet.to_list(socket.assigns.skipped_stages)
     interactive = MapSet.to_list(socket.assigns.interactive_stages)
 
-    llm_module = apply(Pyre.Config, :get_llm_backend, [socket.assigns.llm_backend])
-
     opts = [
       workflow: socket.assigns.workflow,
       skipped_stages: skipped,
       interactive_stages: interactive,
       attachments: attachments,
-      llm: llm_module,
       feature: feature
     ]
 
@@ -209,25 +195,6 @@ defmodule PyreWeb.RunNewLive do
           {@badge}
         </span>
       </div>
-      <div class="text-xs text-base-content/50 mt-0.5">{@description}</div>
-    </div>
-    """
-  end
-
-  defp backend_card(assigns) do
-    ~H"""
-    <div
-      phx-click="select_backend"
-      phx-value-backend={@value}
-      class={[
-        "cursor-pointer rounded-lg border-2 px-4 py-3 transition-colors",
-        if(@selected,
-          do: "border-primary",
-          else: "border-base-300 hover:border-primary/50"
-        )
-      ]}
-    >
-      <div class="text-sm font-medium">{@label}</div>
       <div class="text-xs text-base-content/50 mt-0.5">{@description}</div>
     </div>
     """

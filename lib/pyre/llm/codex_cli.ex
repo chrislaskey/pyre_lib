@@ -24,15 +24,6 @@ defmodule Pyre.LLM.CodexCLI do
       # Browser login (interactive, one-time):
       codex login
 
-  ## Configuration
-
-      # Select as default backend via env var:
-      PYRE_LLM_BACKEND=codex_cli
-
-      # Or in your Pyre.Config module:
-      @impl true
-      def get_llm_backend(_arg), do: Pyre.LLM.CodexCLI
-
   ## Key Differences from ClaudeCLI
 
   - Command structure: `codex exec --json "prompt"` (not `-p prompt`)
