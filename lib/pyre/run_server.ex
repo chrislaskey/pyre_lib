@@ -21,6 +21,9 @@ defmodule Pyre.RunServer do
   # 7 days — long enough for any real session, short enough to bound abandoned runs.
   @interactive_wait_timeout 604_800_000
 
+  # How long to wait for a worker to ACK a reservation before giving up.
+  @reservation_ack_timeout to_timeout(second: 10)
+
   # --- Public API ---
 
   @doc """
@@ -215,6 +218,9 @@ defmodule Pyre.RunServer do
       waiting_for_input: false,
       pending_from: nil,
       session_ids: %{},
+      reservation_id: nil,
+      reservation_timer: nil,
+      owns_reservation: false,
       opts: opts
     }
 
@@ -226,10 +232,6 @@ defmodule Pyre.RunServer do
 
   @impl true
   def handle_continue(:start_flow, state) do
-    server = self()
-    stages = workflow_stages(state.workflow)
-    session_ids = Pyre.Session.generate_for_stages(stages)
-
     # Select a worker for this run
     connection_id = select_worker(state.opts)
 
@@ -251,40 +253,93 @@ defmodule Pyre.RunServer do
         {:noreply, state}
 
       connection_id ->
-        flow_opts =
-          state.opts
-          |> Keyword.put(:log_fn, fn msg -> GenServer.cast(server, {:log, msg}) end)
-          |> Keyword.put(:output_fn, fn chunk -> GenServer.cast(server, {:output, chunk}) end)
-          |> Keyword.put(:streaming, Keyword.get(state.opts, :streaming, true))
-          |> Keyword.put(:skip_check_fn, fn phase ->
-            GenServer.call(server, {:stage_skipped?, phase})
-          end)
-          |> Keyword.put(:interactive_stage_fn, fn phase ->
-            GenServer.call(server, {:interactive_stage?, phase})
-          end)
-          |> Keyword.put(:await_user_action_fn, fn phase ->
-            GenServer.call(server, {:await_user_action, phase}, @interactive_wait_timeout)
-          end)
-          |> Keyword.put(:session_ids, session_ids)
-          |> Keyword.put(:connection_id, connection_id)
-          |> Keyword.put(:dispatch_fn, &dispatch_to_worker/3)
+        state = Map.put(state, :connection_id, connection_id)
 
-        flow_module = flow_module(state.workflow)
+        case Keyword.get(state.opts, :reservation_id) do
+          nil ->
+            # No pre-existing reservation — dispatch reserve and wait for ACK
+            dispatch_reservation(state, connection_id)
 
-        task =
-          Task.Supervisor.async_nolink(Jido.Action.TaskSupervisor, fn ->
-            flow_module.run(state.feature_description, flow_opts)
-          end)
+          reservation_id ->
+            # Caller already reserved (e.g., WorkflowJob) — skip reservation
+            state =
+              state
+              |> Map.put(:reservation_id, reservation_id)
+              |> Map.put(:owns_reservation, false)
 
-        state =
-          state
-          |> Map.put(:session_ids, session_ids)
-          |> Map.put(:connection_id, connection_id)
-          |> Map.put(:task_ref, task.ref)
-          |> Map.put(:task_pid, task.pid)
-
-        {:noreply, state}
+            start_flow_task(state)
+        end
     end
+  end
+
+  defp start_flow_task(state) do
+    server = self()
+    stages = workflow_stages(state.workflow)
+    session_ids = Pyre.Session.generate_for_stages(stages)
+    connection_id = state.connection_id
+
+    flow_opts =
+      state.opts
+      |> Keyword.put(:log_fn, fn msg -> GenServer.cast(server, {:log, msg}) end)
+      |> Keyword.put(:output_fn, fn chunk -> GenServer.cast(server, {:output, chunk}) end)
+      |> Keyword.put(:streaming, Keyword.get(state.opts, :streaming, true))
+      |> Keyword.put(:skip_check_fn, fn phase ->
+        GenServer.call(server, {:stage_skipped?, phase})
+      end)
+      |> Keyword.put(:interactive_stage_fn, fn phase ->
+        GenServer.call(server, {:interactive_stage?, phase})
+      end)
+      |> Keyword.put(:await_user_action_fn, fn phase ->
+        GenServer.call(server, {:await_user_action, phase}, @interactive_wait_timeout)
+      end)
+      |> Keyword.put(:session_ids, session_ids)
+      |> Keyword.put(:connection_id, connection_id)
+      |> Keyword.put(:dispatch_fn, &dispatch_to_worker/3)
+
+    flow_module = flow_module(state.workflow)
+
+    task =
+      Task.Supervisor.async_nolink(Jido.Action.TaskSupervisor, fn ->
+        flow_module.run(state.feature_description, flow_opts)
+      end)
+
+    state =
+      state
+      |> Map.put(:session_ids, session_ids)
+      |> Map.put(:task_ref, task.ref)
+      |> Map.put(:task_pid, task.pid)
+
+    {:noreply, state}
+  end
+
+  defp dispatch_reservation(state, connection_id) do
+    reservation_id = "run:#{state.id}"
+
+    # Subscribe to ACK topic BEFORE dispatching (prevents race)
+    if ps = pubsub() do
+      Phoenix.PubSub.subscribe(ps, "pyre:action:output:#{reservation_id}")
+    end
+
+    # Dispatch reserve action to the worker
+    dispatch_to_worker(connection_id, reservation_id, %{
+      "action" => "reserve",
+      "run_id" => state.id
+    })
+
+    # Set ACK timeout
+    timer_ref = Process.send_after(self(), :reservation_timeout, @reservation_ack_timeout)
+
+    state =
+      state
+      |> Map.merge(%{
+        status: :reserving,
+        reservation_id: reservation_id,
+        reservation_timer: timer_ref,
+        owns_reservation: true
+      })
+
+    update_registry_meta(state)
+    {:noreply, state}
   end
 
   @impl true
@@ -331,7 +386,7 @@ defmodule Pyre.RunServer do
   def handle_call(:get_state, _from, state) do
     reply =
       state
-      |> Map.drop([:opts, :task_ref, :task_pid, :pending_from])
+      |> Map.drop([:opts, :task_ref, :task_pid, :pending_from, :reservation_timer])
       |> strip_attachment_content()
 
     {:reply, reply, state}
@@ -387,11 +442,37 @@ defmodule Pyre.RunServer do
     {:noreply, state}
   end
 
+  def handle_call(:stop_run, _from, %{status: :reserving} = state) do
+    if state.reservation_timer, do: Process.cancel_timer(state.reservation_timer)
+
+    if ps = pubsub() do
+      Phoenix.PubSub.unsubscribe(ps, "pyre:action:output:#{state.reservation_id}")
+    end
+
+    state = maybe_release_reservation(state)
+    entry = make_entry(:log, "Pipeline stopped by user.")
+
+    state =
+      state
+      |> append_entry(entry)
+      |> Map.merge(%{
+        status: :stopped,
+        completed_at: DateTime.utc_now(),
+        reservation_timer: nil
+      })
+
+    broadcast_event(state.id, entry)
+    broadcast_status(state.id, :stopped)
+    update_registry_meta(state)
+    {:reply, :ok, state}
+  end
+
   def handle_call(:stop_run, _from, %{status: :running, task_pid: pid, task_ref: ref} = state)
       when not is_nil(pid) do
     Process.demonitor(ref, [:flush])
     Task.Supervisor.terminate_child(Jido.Action.TaskSupervisor, pid)
 
+    state = maybe_release_reservation(state)
     entry = make_entry(:log, "Pipeline stopped by user.")
 
     state =
@@ -416,7 +497,85 @@ defmodule Pyre.RunServer do
     {:reply, {:error, :not_running}, state}
   end
 
+  # --- Reservation ACK handlers ---
+
   @impl true
+  def handle_info(
+        {:action_output, %{"type" => "ack", "status" => "accepted"}},
+        %{status: :reserving} = state
+      ) do
+    if state.reservation_timer, do: Process.cancel_timer(state.reservation_timer)
+
+    if ps = pubsub() do
+      Phoenix.PubSub.unsubscribe(ps, "pyre:action:output:#{state.reservation_id}")
+    end
+
+    state = Map.put(state, :reservation_timer, nil)
+    start_flow_task(state)
+  end
+
+  def handle_info(
+        {:action_output, %{"type" => "ack", "status" => "rejected"}},
+        %{status: :reserving} = state
+      ) do
+    if state.reservation_timer, do: Process.cancel_timer(state.reservation_timer)
+
+    if ps = pubsub() do
+      Phoenix.PubSub.unsubscribe(ps, "pyre:action:output:#{state.reservation_id}")
+    end
+
+    entry = make_entry(:error, "Worker rejected reservation (at capacity)")
+    state = append_entry(state, entry)
+    broadcast_event(state.id, entry)
+    broadcast_status(state.id, :error)
+
+    state =
+      state
+      |> Map.merge(%{
+        status: :error,
+        completed_at: DateTime.utc_now(),
+        reservation_timer: nil,
+        reservation_id: nil,
+        owns_reservation: false
+      })
+
+    update_registry_meta(state)
+    {:noreply, state}
+  end
+
+  def handle_info(:reservation_timeout, %{status: :reserving} = state) do
+    if ps = pubsub() do
+      Phoenix.PubSub.unsubscribe(ps, "pyre:action:output:#{state.reservation_id}")
+    end
+
+    entry = make_entry(:error, "Worker did not acknowledge reservation (timeout)")
+    state = append_entry(state, entry)
+    broadcast_event(state.id, entry)
+    broadcast_status(state.id, :error)
+
+    state =
+      state
+      |> Map.merge(%{
+        status: :error,
+        completed_at: DateTime.utc_now(),
+        reservation_timer: nil,
+        reservation_id: nil,
+        owns_reservation: false
+      })
+
+    update_registry_meta(state)
+    {:noreply, state}
+  end
+
+  # Stale timer or ACK after we already moved past :reserving — ignore
+  def handle_info(:reservation_timeout, state), do: {:noreply, state}
+  def handle_info({:action_output, %{"type" => "ack"}}, state), do: {:noreply, state}
+
+  # Ignore action_complete messages that arrive on the ACK subscription topic
+  def handle_info({:action_complete, _payload}, state), do: {:noreply, state}
+
+  # --- Task completion handlers ---
+
   def handle_info({ref, result}, %{task_ref: ref} = state) do
     Process.demonitor(ref, [:flush])
 
@@ -428,6 +587,8 @@ defmodule Pyre.RunServer do
         {:error, reason} ->
           {:error, make_entry(:error, "Error: #{inspect(reason)}")}
       end
+
+    state = maybe_release_reservation(state)
 
     state =
       state
@@ -448,6 +609,8 @@ defmodule Pyre.RunServer do
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{task_ref: ref} = state)
       when reason != :normal do
     entry = make_entry(:error, "Task crashed: #{inspect(reason)}")
+
+    state = maybe_release_reservation(state)
 
     state =
       state
@@ -555,6 +718,25 @@ defmodule Pyre.RunServer do
 
     Registry.update_value(Pyre.RunRegistry, state.id, fn _old -> meta end)
   end
+
+  # --- Reservation management ---
+
+  defp maybe_release_reservation(
+         %{owns_reservation: true, reservation_id: res_id, connection_id: conn_id} = state
+       )
+       when res_id != nil and conn_id != nil do
+    if ps = pubsub() do
+      Phoenix.PubSub.broadcast(
+        ps,
+        "pyre:action:input:#{conn_id}",
+        {:action_finish, res_id}
+      )
+    end
+
+    %{state | reservation_id: nil, owns_reservation: false}
+  end
+
+  defp maybe_release_reservation(state), do: state
 
   # --- Worker selection and dispatch ---
 

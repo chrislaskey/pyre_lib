@@ -9,11 +9,17 @@ defmodule PyreWeb.Socket do
   This socket must be mounted in the host application's endpoint:
 
       # lib/my_app_web/endpoint.ex
-      socket "/pyre", PyreWeb.Socket,
+      socket "/", PyreWeb.Socket,
         websocket: [connect_info: [:peer_data, :x_headers]]
 
-  The path (`/pyre`) should match the path used when mounting `pyre_web`
-  in the router.
+  The mount path should match the path used when mounting `pyre_web` in the
+  router. For example, if you mount at a subpath:
+
+      socket "/pyre", PyreWeb.Socket, ...   # endpoint
+      pyre_web "/pyre"                      # router
+
+  Clients (pyre_client, pyre_native) must include the same prefix in their
+  WebSocket URL — e.g., `ws://localhost:4000/pyre/websocket`.
 
   ## Presence
 

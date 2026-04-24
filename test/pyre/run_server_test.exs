@@ -50,6 +50,17 @@ defmodule Pyre.RunServerTest do
 
   defp mock_worker_loop(pubsub, response_agent) do
     receive do
+      {:action, execution_id, %{"action" => "reserve"}} ->
+        # ACK the reservation immediately
+        Phoenix.PubSub.broadcast(
+          pubsub,
+          "pyre:action:output:#{execution_id}",
+          {:action_output,
+           %{"execution_id" => execution_id, "type" => "ack", "status" => "accepted"}}
+        )
+
+        mock_worker_loop(pubsub, response_agent)
+
       {:action, execution_id, _payload} ->
         response =
           Agent.get_and_update(response_agent, fn
@@ -71,7 +82,7 @@ defmodule Pyre.RunServerTest do
         mock_worker_loop(pubsub, response_agent)
 
       {:action_finish, _execution_id} ->
-        # Interactive finish — no response needed
+        # Reservation release or interactive finish — no response needed
         mock_worker_loop(pubsub, response_agent)
     after
       30_000 -> :timeout
@@ -129,7 +140,7 @@ defmodule Pyre.RunServerTest do
 
     {:ok, state} = Pyre.RunServer.get_state(id)
     assert state.id == id
-    assert state.status in [:running, :complete]
+    assert state.status in [:reserving, :running, :complete]
     assert state.feature_description == "Build a page"
     assert %DateTime{} = state.started_at
 
@@ -187,7 +198,7 @@ defmodule Pyre.RunServerTest do
 
     assert run != nil
     assert run.feature_description == "Build a page"
-    assert run.status in [:running, :complete]
+    assert run.status in [:reserving, :running, :complete]
 
     wait_for_status(id, :complete)
   end
@@ -650,6 +661,101 @@ defmodule Pyre.RunServerTest do
     assert state.connection_id == "test-conn"
   end
 
+  # --- Reservation tests ---
+
+  test "RunServer dispatches reserve and awaits ACK before starting flow", %{
+    tmp_dir: tmp_dir,
+    response_agent: agent
+  } do
+    set_responses(agent, ["Task output."])
+
+    {:ok, id} =
+      Pyre.RunServer.start_run("Add pagination",
+        workflow: :task,
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        project_dir: tmp_dir,
+        connection_id: "test-conn"
+        # No reservation_id — RunServer handles it
+      )
+
+    wait_for_status(id, :complete)
+
+    {:ok, state} = Pyre.RunServer.get_state(id)
+    assert state.status == :complete
+    # Reservation cleared after completion
+    assert state.reservation_id == nil
+    assert state.owns_reservation == false
+  end
+
+  test "pre-provided reservation_id skips reserve dispatch", %{
+    tmp_dir: tmp_dir,
+    response_agent: agent
+  } do
+    set_responses(agent, ["Task output."])
+
+    {:ok, id} =
+      Pyre.RunServer.start_run("Add pagination",
+        workflow: :task,
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        project_dir: tmp_dir,
+        connection_id: "test-conn",
+        reservation_id: "pre-existing-reservation"
+      )
+
+    wait_for_status(id, :complete)
+
+    {:ok, state} = Pyre.RunServer.get_state(id)
+    assert state.status == :complete
+    # RunServer did not own the reservation — caller is responsible for release
+    assert state.owns_reservation == false
+  end
+
+  test "reservation timeout transitions to error", %{tmp_dir: tmp_dir} do
+    # Use a connection_id with no subscriber — no one will ACK
+    {:ok, id} =
+      Pyre.RunServer.start_run("Add pagination",
+        workflow: :task,
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        project_dir: tmp_dir,
+        connection_id: "no-one-listening"
+      )
+
+    wait_for_status(id, :error, 15_000)
+
+    {:ok, state} = Pyre.RunServer.get_state(id)
+    assert state.status == :error
+
+    {:ok, log} = Pyre.RunServer.get_log(id)
+    contents = Enum.map(log, & &1.content)
+    assert Enum.any?(contents, &String.contains?(&1, "timeout"))
+  end
+
+  test "stop_run during reservation phase cancels and cleans up", %{tmp_dir: tmp_dir} do
+    # Use a connection_id with no subscriber — will stay in :reserving
+    {:ok, id} =
+      Pyre.RunServer.start_run("Add pagination",
+        workflow: :task,
+        llm: Pyre.LLM.Mock,
+        streaming: false,
+        project_dir: tmp_dir,
+        connection_id: "no-one-listening"
+      )
+
+    # Brief sleep to let RunServer reach :reserving status
+    Process.sleep(50)
+
+    {:ok, state} = Pyre.RunServer.get_state(id)
+    assert state.status == :reserving
+
+    :ok = Pyre.RunServer.stop_run(id)
+
+    {:ok, state} = Pyre.RunServer.get_state(id)
+    assert state.status == :stopped
+  end
+
   # --- Helpers ---
 
   defp start_interactive_mock_worker(pubsub, connection_id, response_agent) do
@@ -665,6 +771,17 @@ defmodule Pyre.RunServerTest do
 
   defp interactive_worker_loop(pubsub, response_agent, _current_execution_id) do
     receive do
+      {:action, execution_id, %{"action" => "reserve"}} ->
+        # ACK the reservation immediately
+        Phoenix.PubSub.broadcast(
+          pubsub,
+          "pyre:action:output:#{execution_id}",
+          {:action_output,
+           %{"execution_id" => execution_id, "type" => "ack", "status" => "accepted"}}
+        )
+
+        interactive_worker_loop(pubsub, response_agent, nil)
+
       {:action, execution_id, _payload} ->
         response =
           Agent.get_and_update(response_agent, fn

@@ -14,7 +14,7 @@ defmodule PyreWeb.ConnectionPresenceComponent do
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <span class="inline-block w-2 h-2 rounded-full bg-success"></span>
-              <h3 class="card-title text-sm">{presence.name}</h3>
+              <h3 class="card-title text-sm">{presence["name"] || presence[:name]}</h3>
             </div>
 
             <div class="text-xs text-base-content/60 space-y-0.5 mt-1">

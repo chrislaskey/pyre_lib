@@ -77,6 +77,16 @@ defmodule PyreWeb.RunListLiveTest do
 
   defp mock_worker_loop(pubsub, response_agent) do
     receive do
+      {:action, execution_id, %{"action" => "reserve"}} ->
+        Phoenix.PubSub.broadcast(
+          pubsub,
+          "pyre:action:output:#{execution_id}",
+          {:action_output,
+           %{"execution_id" => execution_id, "type" => "ack", "status" => "accepted"}}
+        )
+
+        mock_worker_loop(pubsub, response_agent)
+
       {:action, execution_id, _payload} ->
         response =
           Agent.get_and_update(response_agent, fn
