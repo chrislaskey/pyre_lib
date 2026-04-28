@@ -42,19 +42,32 @@ defmodule PyreWeb.Socket do
 
   @impl true
   def connect(params, socket, connect_info) do
-    case Pyre.Config.authorize(:authorize_socket_connect, [params, connect_info]) do
-      :ok ->
-        connection_id = params["connection_id"]
+    x_headers = connect_info[:x_headers] || []
+    token = :proplists.get_value("x-pyre-token", x_headers)
 
-        socket =
-          socket
-          |> assign(:params, params)
-          |> assign(:connection_id, connection_id)
+    with :ok <- validate_service_token(token),
+         :ok <- Pyre.Config.authorize(:authorize_socket_connect, [params, connect_info]) do
+      connection_id = params["connection_id"]
 
-        {:ok, socket}
+      socket =
+        socket
+        |> assign(:params, params)
+        |> assign(:connection_id, connection_id)
 
-      {:error, _reason} ->
-        :error
+      {:ok, socket}
+    else
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp validate_service_token(token) do
+    cond do
+      is_binary(token) and Pyre.Config.call(:websocket_service_token_valid?, [token]) ->
+        :ok
+
+      true ->
+        Logger.warning("[PyreWeb.Socket] Invalid or missing service token on connect")
+        {:error, :unauthorized}
     end
   end
 

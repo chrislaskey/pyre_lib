@@ -87,7 +87,7 @@ defmodule Pyre.Config do
   @callback authorize_socket_connect(params :: map(), connect_info :: map()) ::
               :ok | {:error, term()}
 
-  @callback authorize_channel_join(topic :: String.t(), socket :: Phoenix.Socket.t()) ::
+  @callback authorize_channel_join(topic :: String.t(), params :: map(), socket :: Phoenix.Socket.t()) ::
               :ok | {:error, term()}
 
   @callback authorize_run_create(run_params :: map(), socket :: Phoenix.LiveView.Socket.t()) ::
@@ -101,6 +101,29 @@ defmodule Pyre.Config do
 
   @callback authorize_webhook(event :: String.t(), payload :: map()) ::
               :ok | {:error, term()}
+
+  # -- WebSocket Service Token Callbacks --
+
+  @doc """
+  Returns the list of valid WebSocket service tokens.
+
+  Default reads `config :pyre, :websocket_service_tokens`. Accepts a
+  comma-separated string or a list. Returns `[]` if unconfigured,
+  which means no tokens are valid and all connections are rejected.
+
+  Override in host apps to load tokens from a database, vault, etc.
+  """
+  @callback websocket_service_tokens() :: [String.t()]
+
+  @doc """
+  Returns whether the given WebSocket service token is valid.
+
+  Default checks membership in `websocket_service_tokens/0` using
+  timing-safe comparison via `Plug.Crypto.secure_compare/2`.
+
+  Override in host apps for token scoping, expiry, rate tracking, etc.
+  """
+  @callback websocket_service_token_valid?(token :: String.t()) :: boolean()
 
   # -- GitHub App Persistence Callbacks --
 
@@ -311,7 +334,8 @@ defmodule Pyre.Config do
   Dispatches an authorization check to the configured config module.
 
   Returns `:ok` or `{:error, reason}`. Rescues any exception raised inside
-  the user's callback and returns `:ok` (fail-open) with a logged warning.
+  the user's callback and returns `{:error, :auth_error}` (fail-closed)
+  with a logged error.
   """
   @spec authorize(atom(), list()) :: :ok | {:error, term()}
   def authorize(hook, args) do
@@ -321,9 +345,9 @@ defmodule Pyre.Config do
       apply(mod, hook, args)
     rescue
       e ->
-        Logger.warning("Pyre.Config hook #{hook} raised: #{Exception.message(e)}")
+        Logger.error("Pyre.Config hook #{hook} raised: #{Exception.message(e)}")
 
-        :ok
+        {:error, :auth_error}
     end
   end
 
@@ -515,7 +539,7 @@ defmodule Pyre.Config do
       @impl Pyre.Config
       def authorize_socket_connect(_params, _connect_info), do: :ok
       @impl Pyre.Config
-      def authorize_channel_join(_topic, _socket), do: :ok
+      def authorize_channel_join(_topic, _params, _socket), do: :ok
       @impl Pyre.Config
       def authorize_run_create(_run_params, _socket), do: :ok
       @impl Pyre.Config
@@ -524,6 +548,25 @@ defmodule Pyre.Config do
       def authorize_remote_action(_action, _socket), do: :ok
       @impl Pyre.Config
       def authorize_webhook(_event, _payload), do: :ok
+
+      # -- WebSocket Service Token defaults --
+
+      @impl Pyre.Config
+      def websocket_service_tokens do
+        case Application.get_env(:pyre, :websocket_service_tokens) do
+          nil -> []
+          tokens when is_list(tokens) -> tokens
+          csv when is_binary(csv) ->
+            csv |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+        end
+      end
+
+      @impl Pyre.Config
+      def websocket_service_token_valid?(token) when is_binary(token) do
+        Enum.any?(websocket_service_tokens(), &Plug.Crypto.secure_compare(&1, token))
+      end
+
+      def websocket_service_token_valid?(_), do: false
 
       # -- GitHub App defaults --
 
@@ -568,11 +611,13 @@ defmodule Pyre.Config do
                      after_llm_call_error: 1,
                      list_workflows: 0,
                      authorize_socket_connect: 2,
-                     authorize_channel_join: 2,
+                     authorize_channel_join: 3,
                      authorize_run_create: 2,
                      authorize_run_control: 2,
                      authorize_remote_action: 2,
                      authorize_webhook: 2,
+                     websocket_service_tokens: 0,
+                     websocket_service_token_valid?: 1,
                      update_github_app: 1,
                      list_github_apps: 0,
                      additional_nav_links: 1,
@@ -597,11 +642,27 @@ defmodule Pyre.Config do
   def after_llm_call_error(_event), do: :ok
 
   def authorize_socket_connect(_params, _connect_info), do: :ok
-  def authorize_channel_join(_topic, _socket), do: :ok
+  def authorize_channel_join(_topic, _params, _socket), do: :ok
   def authorize_run_create(_run_params, _socket), do: :ok
   def authorize_run_control(_action, _socket), do: :ok
   def authorize_remote_action(_action, _socket), do: :ok
   def authorize_webhook(_event, _payload), do: :ok
+
+  def websocket_service_tokens do
+    case Application.get_env(:pyre, :websocket_service_tokens) do
+      nil -> []
+      tokens when is_list(tokens) -> tokens
+      csv when is_binary(csv) ->
+        csv |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+    end
+  end
+
+  def websocket_service_token_valid?(token) when is_binary(token) do
+    Enum.any?(websocket_service_tokens(), &Plug.Crypto.secure_compare(&1, token))
+  end
+
+  def websocket_service_token_valid?(_), do: false
+
   def update_github_app(_credentials), do: :ok
   def list_github_apps, do: list_github_apps_from_env()
   def additional_nav_links(assigns), do: ~H""

@@ -173,4 +173,102 @@ defmodule Pyre.ConfigTest do
       assert task.mode == :background
     end
   end
+
+  describe "websocket_service_tokens/0" do
+    setup do
+      original = Application.get_env(:pyre, :websocket_service_tokens)
+      on_exit(fn ->
+        if original, do: Application.put_env(:pyre, :websocket_service_tokens, original),
+                     else: Application.delete_env(:pyre, :websocket_service_tokens)
+      end)
+      :ok
+    end
+
+    test "parses comma-separated string" do
+      Application.put_env(:pyre, :websocket_service_tokens, "tok-a, tok-b, tok-c")
+      assert Config.websocket_service_tokens() == ["tok-a", "tok-b", "tok-c"]
+    end
+
+    test "passes through list config" do
+      Application.put_env(:pyre, :websocket_service_tokens, ["tok-a", "tok-b"])
+      assert Config.websocket_service_tokens() == ["tok-a", "tok-b"]
+    end
+
+    test "returns empty list when unconfigured" do
+      Application.delete_env(:pyre, :websocket_service_tokens)
+      assert Config.websocket_service_tokens() == []
+    end
+
+    test "trims whitespace from CSV entries" do
+      Application.put_env(:pyre, :websocket_service_tokens, "  tok-a , tok-b  ")
+      assert Config.websocket_service_tokens() == ["tok-a", "tok-b"]
+    end
+  end
+
+  describe "websocket_service_token_valid?/1" do
+    setup do
+      original = Application.get_env(:pyre, :websocket_service_tokens)
+      on_exit(fn ->
+        if original, do: Application.put_env(:pyre, :websocket_service_tokens, original),
+                     else: Application.delete_env(:pyre, :websocket_service_tokens)
+      end)
+      Application.put_env(:pyre, :websocket_service_tokens, ["valid-token", "another-token"])
+      :ok
+    end
+
+    test "returns true for a valid token" do
+      assert Config.websocket_service_token_valid?("valid-token")
+      assert Config.websocket_service_token_valid?("another-token")
+    end
+
+    test "returns false for an invalid token" do
+      refute Config.websocket_service_token_valid?("wrong-token")
+    end
+
+    test "returns false for nil" do
+      refute Config.websocket_service_token_valid?(nil)
+    end
+
+    test "returns false for empty string" do
+      refute Config.websocket_service_token_valid?("")
+    end
+
+    test "returns false when no tokens configured" do
+      Application.delete_env(:pyre, :websocket_service_tokens)
+      refute Config.websocket_service_token_valid?("any-token")
+    end
+  end
+
+  describe "authorize/2 fail-closed" do
+    defmodule CrashingAuth do
+      use Pyre.Config
+
+      @impl true
+      def authorize_socket_connect(_params, _connect_info) do
+        raise "auth crash"
+      end
+    end
+
+    test "returns {:error, :auth_error} when callback raises" do
+      Application.put_env(:pyre, :config, CrashingAuth)
+      assert {:error, :auth_error} = Config.authorize(:authorize_socket_connect, [%{}, %{}])
+    end
+
+    test "passes through :ok from callback" do
+      Application.delete_env(:pyre, :config)
+      assert :ok = Config.authorize(:authorize_socket_connect, [%{}, %{}])
+    end
+
+    test "passes through {:error, reason} from callback" do
+      defmodule DenyAll do
+        use Pyre.Config
+
+        @impl true
+        def authorize_socket_connect(_params, _connect_info), do: {:error, :denied}
+      end
+
+      Application.put_env(:pyre, :config, DenyAll)
+      assert {:error, :denied} = Config.authorize(:authorize_socket_connect, [%{}, %{}])
+    end
+  end
 end

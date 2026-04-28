@@ -672,7 +672,7 @@ The 6 authorization hooks and their arguments:
 | Hook | Arguments | Used in |
 |------|-----------|---------|
 | `authorize_socket_connect` | `(params, connect_info)` | `PyreWeb.Socket` |
-| `authorize_channel_join` | `(topic, socket)` | `PyreWeb.Channel` |
+| `authorize_channel_join` | `(topic, params, socket)` | `PyreWeb.Channel` |
 | `authorize_run_create` | `(run_params, socket)` | New run form |
 | `authorize_run_control` | `(action, socket)` | Run show (stop, toggle, reply) |
 | `authorize_remote_action` | `(action, socket)` | Home page action dispatch |
@@ -686,8 +686,43 @@ The 6 authorization hooks and their arguments:
 | `list_github_apps` | `()` | Load all configured GitHub Apps (returns list of maps) |
 
 All authorization callbacks return `:ok | {:error, term()}`. Defaults permit
-all operations. Exceptions in callbacks are rescued and return `:ok`
-(fail-open) to avoid locking users out when a hook crashes.
+all operations. Exceptions in callbacks are rescued and return
+`{:error, :auth_error}` (fail-closed) to prevent unauthorized access when a
+hook crashes.
+
+#### WebSocket Service Tokens
+
+Pyre validates a pre-shared service token at both WebSocket connect (HTTP
+header) and channel join (payload). Configure valid tokens via a
+comma-separated environment variable:
+
+```bash
+# Server-side
+PYRE_WEBSOCKET_SERVICE_TOKENS_CSV=pyre_tok_abc123,pyre_tok_def456
+```
+
+```elixir
+# config/runtime.exs
+config :pyre, :websocket_service_tokens, System.get_env("PYRE_WEBSOCKET_SERVICE_TOKENS_CSV")
+```
+
+Generate tokens with:
+
+```bash
+mix pyre.gen.token
+```
+
+`Pyre.Config` provides two callbacks for token management:
+
+| Callback | Default behaviour |
+|----------|------------------|
+| `websocket_service_tokens/0` | Parses CSV from `config :pyre, :websocket_service_tokens` |
+| `websocket_service_token_valid?/1` | Checks membership via `Plug.Crypto.secure_compare/2` |
+
+Override these in your config module for dynamic token management (e.g.,
+database-backed tokens, token scoping, expiry).
+
+When no tokens are configured, all WebSocket connections are rejected.
 
 #### Render Hooks
 

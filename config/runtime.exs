@@ -39,4 +39,8 @@ if config_env() != :test do
       ]
     ]
   end
+
+  if tokens = System.get_env("PYRE_WEBSOCKET_SERVICE_TOKENS_CSV") do
+    config :pyre, :websocket_service_tokens, tokens
+  end
 end

@@ -29,7 +29,7 @@ defmodule PyreWeb.ConfigTest do
 
     test "returns :ok for authorize_channel_join" do
       Application.delete_env(:pyre, :config)
-      assert :ok = Pyre.Config.authorize(:authorize_channel_join, ["pyre:connections", %{}])
+      assert :ok = Pyre.Config.authorize(:authorize_channel_join, ["pyre:connections", %{}, %{}])
     end
 
     test "returns :ok for authorize_run_create" do
@@ -106,7 +106,7 @@ defmodule PyreWeb.ConfigTest do
       Application.put_env(:pyre, :config, PyreWeb.ConfigTest.DenyAll)
 
       assert {:error, :unauthorized} =
-               Pyre.Config.authorize(:authorize_channel_join, ["topic", %{}])
+               Pyre.Config.authorize(:authorize_channel_join, ["topic", %{}, %{}])
 
       assert {:error, :unauthorized} =
                Pyre.Config.authorize(:authorize_run_create, [%{}, %{}])
@@ -123,12 +123,13 @@ defmodule PyreWeb.ConfigTest do
   end
 
   describe "authorize/2 crash recovery" do
-    test "rescues exception and returns :ok" do
+    test "rescues exception and returns {:error, :auth_error} (fail-closed)" do
       Application.put_env(:pyre, :config, PyreWeb.ConfigTest.Crasher)
 
       log =
         capture_log(fn ->
-          assert :ok = Pyre.Config.authorize(:authorize_socket_connect, [%{}, %{}])
+          assert {:error, :auth_error} =
+                   Pyre.Config.authorize(:authorize_socket_connect, [%{}, %{}])
         end)
 
       assert log =~ "Pyre.Config hook authorize_socket_connect raised"
@@ -195,7 +196,7 @@ defmodule PyreWeb.ConfigTest do
       mod = PyreWeb.ConfigTest.AllowAll
 
       assert :ok = mod.authorize_socket_connect(%{}, %{})
-      assert :ok = mod.authorize_channel_join("topic", %{})
+      assert :ok = mod.authorize_channel_join("topic", %{}, %{})
       assert :ok = mod.authorize_run_create(%{}, %{})
       assert :ok = mod.authorize_run_control(%{}, %{})
       assert :ok = mod.authorize_remote_action(%{}, %{})
@@ -238,7 +239,7 @@ defmodule PyreWeb.ConfigTest do
     @impl true
     def authorize_socket_connect(_params, _connect_info), do: {:error, :unauthorized}
     @impl true
-    def authorize_channel_join(_topic, _socket), do: {:error, :unauthorized}
+    def authorize_channel_join(_topic, _params, _socket), do: {:error, :unauthorized}
     @impl true
     def authorize_run_create(_run_params, _socket), do: {:error, :unauthorized}
     @impl true

@@ -15,20 +15,25 @@ defmodule PyreWeb.Channel do
   require Logger
 
   @impl true
-  def join("pyre:hello" = topic, _params, socket) do
-    case Pyre.Config.authorize(:authorize_channel_join, [topic, socket]) do
-      :ok -> {:ok, %{message: "hello world"}, socket}
+  def join("pyre:hello" = topic, params, socket) do
+    token = params["token"]
+
+    with :ok <- validate_service_token(token),
+         :ok <- Pyre.Config.authorize(:authorize_channel_join, [topic, params, socket]) do
+      {:ok, %{message: "hello world"}, socket}
+    else
       {:error, reason} -> {:error, %{reason: reason}}
     end
   end
 
   def join("pyre:connections" = topic, params, socket) do
-    case Pyre.Config.authorize(:authorize_channel_join, [topic, socket]) do
-      {:error, reason} ->
-        {:error, %{reason: reason}}
+    token = params["token"]
 
-      :ok ->
-        join_connections(params, socket)
+    with :ok <- validate_service_token(token),
+         :ok <- Pyre.Config.authorize(:authorize_channel_join, [topic, params, socket]) do
+      join_connections(params, socket)
+    else
+      {:error, reason} -> {:error, %{reason: reason}}
     end
   end
 
@@ -42,7 +47,7 @@ defmodule PyreWeb.Channel do
     connection_id =
       socket.assigns[:connection_id] || params["connection_id"] || socket.id || "anonymous"
 
-    metadata = Map.delete(params, "connection_id")
+    metadata = Map.drop(params, ["connection_id", "token"])
 
     # Subscribe to actions targeted at this specific connection
     if pubsub = Application.get_env(:pyre, :pubsub) do
@@ -55,6 +60,17 @@ defmodule PyreWeb.Channel do
       |> assign(:connection_metadata, metadata)
 
     {:ok, %{message: "connected"}, socket}
+  end
+
+  defp validate_service_token(token) do
+    cond do
+      is_binary(token) and Pyre.Config.call(:websocket_service_token_valid?, [token]) ->
+        :ok
+
+      true ->
+        Logger.warning("[PyreWeb.Channel] Invalid or missing service token on join")
+        {:error, "unauthorized"}
+    end
   end
 
   @impl true
