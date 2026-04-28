@@ -32,11 +32,11 @@ defmodule PyreWeb.ConnectionPresenceComponent do
 
             <div class="mt-2">
               <button
-                phx-click="action_execute_commands_clone_repo"
+                phx-click="test_connection"
                 phx-value-connection-id={presence[:connection_id]}
                 class="btn btn-sm btn-outline btn-primary"
               >
-                Clone Repo
+                Test Connection
               </button>
             </div>
           </div>

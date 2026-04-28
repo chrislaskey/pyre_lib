@@ -14,9 +14,9 @@
     presences={@presences}
   />
 
-  <div :if={@execution} class="mt-8">
+  <div :if={@execution} id="test-connection-result" class="mt-8">
     <div class="flex items-center gap-3 mb-3">
-      <h2 class="text-lg font-semibold">Remote Execution</h2>
+      <h2 class="text-lg font-semibold">Test Connection</h2>
       <span class="text-xs font-mono text-base-content/50">{@execution.id}</span>
       <span class={[
         "badge badge-sm",

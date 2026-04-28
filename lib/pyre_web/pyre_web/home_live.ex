@@ -28,46 +28,21 @@ defmodule PyreWeb.HomeLive do
   end
 
   @impl true
-  def handle_event(
-        "action_execute_commands_clone_repo",
-        %{"connection-id" => connection_id},
-        socket
-      ) do
-    action = %{
-      type: "execute_commands",
-      connection_id: connection_id,
-      commands: [
-        "mkdir -p ~/code/pyre-runtime",
-        "git -C ~/code/pyre-runtime/pyre pull || git clone https://github.com/chrislaskey/pyre ~/code/pyre-runtime/pyre"
-      ]
-    }
-
-    case Pyre.Config.authorize(:authorize_remote_action, [action, socket]) do
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Not authorized: #{inspect(reason)}")}
-
-      :ok ->
-        dispatch_action(connection_id, action, socket)
-    end
-  end
-
-  defp dispatch_action(connection_id, action, socket) do
+  def handle_event("test_connection", %{"connection-id" => connection_id}, socket) do
     execution_id = :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
     pubsub = pubsub()
 
-    # Subscribe to output from this execution
     Phoenix.PubSub.subscribe(pubsub, "pyre:action:output:#{execution_id}")
 
-    channel_action = %{
-      type: action.type,
-      payload: %{commands: action.commands}
+    action = %{
+      "action" => "test_connection",
+      "payload" => %{}
     }
 
-    # Send to the connection's channel via PubSub
     Phoenix.PubSub.broadcast(
       pubsub,
       "pyre:action:input:#{connection_id}",
-      {:action, execution_id, channel_action}
+      {:action, execution_id, action}
     )
 
     socket =
@@ -100,17 +75,18 @@ defmodule PyreWeb.HomeLive do
 
     status =
       case payload do
-        %{"status" => "ok"} ->
-          :complete
+        %{"status" => "ok"} -> :complete
+        %{"status" => "error"} -> :error
+        _ -> :complete
+      end
 
-        %{"status" => "error"} ->
-          :error
+    content = payload["result"]["message"] || payload["result_text"]
 
-        %{"exit_codes" => exit_codes} ->
-          if Enum.all?(exit_codes, &(&1 == 0)), do: :complete, else: :error
-
-        _ ->
-          :complete
+    socket =
+      if content do
+        assign(socket, action_output: socket.assigns.action_output ++ [content])
+      else
+        socket
       end
 
     {:noreply, assign(socket, execution: %{execution | status: status})}

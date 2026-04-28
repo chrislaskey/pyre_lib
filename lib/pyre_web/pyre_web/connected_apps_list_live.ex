@@ -1,6 +1,6 @@
 defmodule PyreWeb.ConnectedAppsListLive do
   @moduledoc """
-  Landing page for the PyreWeb interface.
+  Lists connected apps with presence tracking and test connection support.
   """
   use PyreWeb.Web, :live_view
 
@@ -28,28 +28,17 @@ defmodule PyreWeb.ConnectedAppsListLive do
   end
 
   @impl true
-  def handle_event(
-        "action_execute_commands_clone_repo",
-        %{"connection-id" => connection_id},
-        socket
-      ) do
+  def handle_event("test_connection", %{"connection-id" => connection_id}, socket) do
     execution_id = :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
     pubsub = pubsub()
 
-    # Subscribe to output from this execution
     Phoenix.PubSub.subscribe(pubsub, "pyre:action:output:#{execution_id}")
 
     action = %{
-      type: "execute_commands",
-      payload: %{
-        commands: [
-          "mkdir -p ~/code/pyre-runtime",
-          "git -C ~/code/pyre-runtime/pyre pull || git clone https://github.com/chrislaskey/pyre ~/code/pyre-runtime/pyre"
-        ]
-      }
+      "action" => "test_connection",
+      "payload" => %{}
     }
 
-    # Send to the connection's channel via PubSub
     Phoenix.PubSub.broadcast(
       pubsub,
       "pyre:action:input:#{connection_id}",
@@ -86,17 +75,18 @@ defmodule PyreWeb.ConnectedAppsListLive do
 
     status =
       case payload do
-        %{"status" => "ok"} ->
-          :complete
+        %{"status" => "ok"} -> :complete
+        %{"status" => "error"} -> :error
+        _ -> :complete
+      end
 
-        %{"status" => "error"} ->
-          :error
+    content = payload["result"]["message"] || payload["result_text"]
 
-        %{"exit_codes" => exit_codes} ->
-          if Enum.all?(exit_codes, &(&1 == 0)), do: :complete, else: :error
-
-        _ ->
-          :complete
+    socket =
+      if content do
+        assign(socket, action_output: socket.assigns.action_output ++ [content])
+      else
+        socket
       end
 
     {:noreply, assign(socket, execution: %{execution | status: status})}
