@@ -40,7 +40,7 @@ defmodule PyreWeb.ConnectionPresenceComponent do
               </p>
             </div>
 
-            <div :if={has_capacity?(presence)} class="mt-2">
+            <div class="mt-2">
               <button
                 phx-click="test_connection"
                 phx-value-connection-id={presence[:connection_id]}
@@ -85,12 +85,5 @@ defmodule PyreWeb.ConnectionPresenceComponent do
 
   defp meta(presence, key) when is_atom(key) do
     Map.get(presence, to_string(key)) || Map.get(presence, key)
-  end
-
-  defp has_capacity?(presence) do
-    case meta(presence, :available_capacity) do
-      n when is_integer(n) and n > 0 -> true
-      _ -> false
-    end
   end
 end
