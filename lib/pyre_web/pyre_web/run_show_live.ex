@@ -296,7 +296,7 @@ defmodule PyreWeb.RunShowLive do
               phx-click="continue_stage"
               class="btn btn-ghost btn-sm"
             >
-              Mark complete and continue &rarr;
+              Mark stage complete and continue to next &rarr;
             </button>
           </div>
         </form>
