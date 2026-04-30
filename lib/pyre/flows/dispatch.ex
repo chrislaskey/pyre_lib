@@ -417,7 +417,8 @@ defmodule Pyre.Flows.Dispatch do
       Phoenix.PubSub.broadcast(
         pubsub,
         "pyre:action:input:#{connection_id}",
-        {:action_continue, execution_id, %{"message" => message}}
+        {:action_continue, execution_id,
+         %{"message" => message, "working_dir" => context.working_dir}}
       )
     end
   end
