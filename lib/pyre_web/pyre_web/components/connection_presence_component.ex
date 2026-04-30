@@ -40,7 +40,7 @@ defmodule PyreWeb.ConnectionPresenceComponent do
               </p>
             </div>
 
-            <div class="mt-2">
+            <div :if={has_capacity?(presence)} class="mt-2">
               <button
                 phx-click="test_connection"
                 phx-value-connection-id={presence[:connection_id]}
