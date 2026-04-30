@@ -74,6 +74,17 @@ defmodule Pyre.Config do
   @callback after_llm_call_error(event :: Pyre.Events.LLMCallError.t()) :: :ok | {:error, term()}
 
   @doc """
+  Returns the maximum number of concurrent workflows this instance supports.
+
+  Used by the queue manager and UI to determine overall system capacity.
+  The default implementation returns `1`.
+
+  Override in consuming apps to set a higher limit or compute it dynamically
+  based on available resources.
+  """
+  @callback max_capacity() :: non_neg_integer()
+
+  @doc """
   Returns the list of available workflows.
 
   Each entry is a map with `:name`, `:module`, `:label`, `:description`,
@@ -532,6 +543,9 @@ defmodule Pyre.Config do
       # -- Workflow defaults --
 
       @impl Pyre.Config
+      def max_capacity, do: 1
+
+      @impl Pyre.Config
       def list_workflows, do: Pyre.Config.included_workflows()
 
       # -- Authorization defaults --
@@ -609,6 +623,7 @@ defmodule Pyre.Config do
                      after_action_error: 1,
                      after_llm_call_complete: 1,
                      after_llm_call_error: 1,
+                     max_capacity: 0,
                      list_workflows: 0,
                      authorize_socket_connect: 2,
                      authorize_channel_join: 3,
@@ -631,6 +646,8 @@ defmodule Pyre.Config do
   end
 
   # -- Default implementations (used when no custom config module is configured) --
+
+  def max_capacity, do: 1
 
   def after_flow_start(_event), do: :ok
   def after_flow_complete(_event), do: :ok
