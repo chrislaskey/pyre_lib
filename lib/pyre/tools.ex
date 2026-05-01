@@ -38,8 +38,8 @@ defmodule Pyre.Tools do
         allowed_paths: ["/path/to/project", "/path/to/other/app"]
       )
 
-  Set the `PYRE_ALLOWED_PATHS` environment variable (comma-separated) to
-  configure allowed paths globally.
+  Note: Allowed paths are configured on the client via
+  `config :pyre_client, :allowed_paths`. See `PyreClient.Config.allowed_paths/0`.
 
   Default allowed commands: #{inspect(default_allowed_commands)}
   """

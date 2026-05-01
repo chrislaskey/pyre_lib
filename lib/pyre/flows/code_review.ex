@@ -68,7 +68,7 @@ defmodule Pyre.Flows.CodeReview do
     features_dir = Path.expand("priv/pyre/features", File.cwd!())
     feature = Keyword.get(opts, :feature)
 
-    allowed_paths = Keyword.get(opts, :allowed_paths) || allowed_paths_from_config()
+    allowed_paths = Keyword.get(opts, :allowed_paths, [])
 
     attachments = Keyword.get(opts, :attachments, [])
 
@@ -206,10 +206,4 @@ defmodule Pyre.Flows.CodeReview do
     end
   end
 
-  defp allowed_paths_from_config do
-    case Application.get_env(:pyre, :allowed_paths) do
-      nil -> []
-      paths when is_list(paths) -> paths
-    end
-  end
 end

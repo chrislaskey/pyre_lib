@@ -22,10 +22,10 @@ defmodule Pyre.Flows.OvernightFeature do
     * `:streaming` -- Stream LLM output token-by-token. Default `true`.
     * `:verbose` -- Print diagnostic information. Default `false`.
     * `:project_dir` -- Working directory for the agents. Default `"."`.
-    * `:allowed_paths` -- Additional directories agents can read/write. Useful for
-      monorepos where agents need access to sibling apps. Accepts a list of absolute
-      paths. Also configurable via `PYRE_ALLOWED_PATHS` env var (comma-separated)
-      or `config :pyre, :allowed_paths`.
+    * `:allowed_paths` -- Additional directories agents can read/write beyond the
+      base paths configured on the client. Useful for adding flow-specific dirs
+      (e.g., feature directories). Base allowed paths are configured on the client
+      via `config :pyre_client, :allowed_paths`.
     * `:output_fn` -- Function called with each streaming token. Default `&IO.write/1`.
     * `:log_fn` -- Function called with status/progress messages. Default `&IO.puts/1`.
     * `:github` -- GitHub repo config map with `:owner`, `:repo`, `:token`, and
@@ -109,7 +109,7 @@ defmodule Pyre.Flows.OvernightFeature do
     features_dir = Path.expand("priv/pyre/features", File.cwd!())
     feature = Keyword.get(opts, :feature)
 
-    allowed_paths = Keyword.get(opts, :allowed_paths) || allowed_paths_from_config()
+    allowed_paths = Keyword.get(opts, :allowed_paths, [])
 
     attachments = Keyword.get(opts, :attachments, [])
 
@@ -402,13 +402,6 @@ defmodule Pyre.Flows.OvernightFeature do
       %{state | phase: next_phase}
     else
       raise "Invalid phase transition: #{current} -> #{next_phase}"
-    end
-  end
-
-  defp allowed_paths_from_config do
-    case Application.get_env(:pyre, :allowed_paths) do
-      nil -> []
-      paths when is_list(paths) -> paths
     end
   end
 

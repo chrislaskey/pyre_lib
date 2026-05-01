@@ -114,7 +114,7 @@ defmodule Pyre.Plugins.Persona do
   end
 
   defp workspace_section do
-    with allowed_paths when is_list(allowed_paths) <- Application.get_env(:pyre, :allowed_paths),
+    with allowed_paths when is_list(allowed_paths) <- Application.get_env(:pyre_client, :allowed_paths),
          normalized_paths when normalized_paths != [] <-
            normalize_allowed_paths(allowed_paths) do
       allowed_lines =

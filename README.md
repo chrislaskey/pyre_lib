@@ -62,42 +62,24 @@ supervision tree.
 
 #### Allowed Paths
 
-By default, agent file tools (read, write, list directory) are sandboxed to
-the working directory. If you need access to sibling apps
-or shared libraries, you can allow additional directories.
+Agent file tools (read, write, list directory) are sandboxed to explicitly
+configured paths. Base allowed paths are configured on the **client** — see
+the [Pyre Client README](https://github.com/chrislaskey/pyre_client?tab=readme-ov-file#allowed-paths)
+for `PYRE_ALLOWED_PATHS` setup.
 
-**Environment variable** (comma-separated):
-
-```bash
-export PYRE_ALLOWED_PATHS="/path/to/apps/other,/path/to/libs/shared"
-```
-
-**Application config:**
+Flows can pass additional directories (beyond the client's base paths) via
+the `:allowed_paths` option. These are merged with the client's configured
+paths at execution time.
 
 ```elixir
-# config/runtime.exs
-if paths = System.get_env("PYRE_ALLOWED_PATHS") do
-  config :pyre,
-    allowed_paths:
-      paths
-      |> String.split(",", trim: true)
-      |> Enum.map(&String.trim/1)
-      |> Enum.map(&Path.expand/1)
-end
-```
-
-**Flow option** (programmatic):
-
-```elixir
-Pyre.Flows.FeatureBuild.run("Build a feature",
+Pyre.Flows.Feature.run("Build a feature",
   project_dir: "apps/tools",
   allowed_paths: ["/path/to/apps/other"]
 )
 ```
 
 Relative paths are resolved against the working directory (`--project-dir`),
-so `../other` with `--project-dir apps/tools` resolves to `apps/other`. The
-working directory itself is always included automatically.
+so `../other` with `--project-dir apps/tools` resolves to `apps/other`.
 
 #### Lifecycle hooks
 
@@ -248,7 +230,7 @@ working in real time.
 | `--no-stream` | | Disable streaming (wait for complete responses) |
 | `--project-dir` | `-p` | Working directory for agents (default: `.`) |
 | `--feature` | `-n` | Feature name to group related runs |
-| `--allowed-paths` | | Comma-separated additional directories agents can access |
+| `--allowed-paths` | | Comma-separated additional directories (merged with client config) |
 
 #### Artifacts
 
