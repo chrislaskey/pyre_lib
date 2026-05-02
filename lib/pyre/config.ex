@@ -262,6 +262,7 @@ defmodule Pyre.Config do
 
     * `:id` - the run ID string (used for links)
     * `:status` - atom (e.g., `:queued`, `:running`, `:complete`, `:error`)
+    * `:workflow` - atom (e.g., `:chat`, `:feature`, `:prototype`)
     * `:feature` - feature name string or nil
     * `:phase` - current phase atom or nil
     * `:feature_description` - the original description string

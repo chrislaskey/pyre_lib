@@ -72,6 +72,8 @@ defmodule PyreWeb.RunListLive do
   defp status_label(:error), do: "Error"
   defp status_label(_), do: "Unknown"
 
+  defp workflow_label(nil), do: ""
+
   defp workflow_label(workflow) when is_atom(workflow) do
     workflow
     |> Atom.to_string()
