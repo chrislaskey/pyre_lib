@@ -8,23 +8,47 @@ defmodule PyreWeb.RunShowLive do
   """
   use PyreWeb.Web, :live_view
 
+  @presence_topic "pyre:connections"
+
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     if connected?(socket) do
       if pubsub = Application.get_env(:pyre, :pubsub) do
         Phoenix.PubSub.subscribe(pubsub, "pyre:runs:#{id}")
+        Phoenix.PubSub.subscribe(pubsub, @presence_topic)
       end
     end
 
     case Pyre.Config.call(:get_run, [id]) do
       {:ok, run} ->
+        workflows = apply(Pyre.Config, :list_workflows, [])
+        presences = if PyreWeb.Presence.running?(), do: PyreWeb.Presence.list_connections(), else: []
+        all_capacity = Pyre.WorkflowAvailability.capacity_by_type(presences, workflows)
+
+        workflow_type = Map.get(run, :workflow)
+        default_info = %{available_capacity: 0, total_max_capacity: 0, connections: []}
+
+        capacity_info =
+          if workflow_type,
+            do: Map.get(all_capacity, to_string(workflow_type), default_info),
+            else: default_info
+
+        workflow_label =
+          case Enum.find(workflows, &(&1.name == workflow_type)) do
+            nil -> nil
+            entry -> entry.label
+          end
+
         socket =
           socket
           |> assign(
             page_title: "Run #{id} — Pyre",
             run_id: id,
             confirm_stop: false,
-            reply_text: ""
+            reply_text: "",
+            workflows: workflows,
+            capacity_info: capacity_info,
+            workflow_label: workflow_label
           )
           |> assign_from_run(run)
           |> stream(:items, Map.get(run, :log, []))
@@ -174,6 +198,24 @@ defmodule PyreWeb.RunShowLive do
 
   def handle_info({:pyre_stage_resumed, _id, _phase}, socket) do
     {:noreply, assign(socket, waiting_for_input: false, reply_text: "")}
+  end
+
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", payload: _diff}, socket) do
+    presences =
+      if PyreWeb.Presence.running?(), do: PyreWeb.Presence.list_connections(), else: []
+
+    all_capacity =
+      Pyre.WorkflowAvailability.capacity_by_type(presences, socket.assigns.workflows)
+
+    workflow_type = Map.get(socket.assigns[:run] || %{}, :workflow)
+    default_info = %{available_capacity: 0, total_max_capacity: 0, connections: []}
+
+    capacity_info =
+      if workflow_type,
+        do: Map.get(all_capacity, to_string(workflow_type), default_info),
+        else: default_info
+
+    {:noreply, assign(socket, capacity_info: capacity_info)}
   end
 
   defp workflow_panel(assigns) do

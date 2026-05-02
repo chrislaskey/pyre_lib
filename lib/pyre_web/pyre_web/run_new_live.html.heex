@@ -27,6 +27,7 @@
             description={entry.description}
             badge={if entry.mode == :interactive, do: "Interactive", else: "Background"}
             selected={@workflow == entry.name}
+            capacity_info={Map.get(@capacity_by_type, to_string(entry.name))}
           />
         </div>
       </div>

@@ -65,4 +65,25 @@ defmodule PyreWeb.Presence do
       []
     end
   end
+
+  @doc """
+  Applies a Phoenix Presence diff to a local presences list.
+
+  Returns the updated list with leaves removed and joins added.
+  Useful for LiveViews that track presences in socket assigns
+  and receive `presence_diff` broadcasts.
+  """
+  def apply_diff(presences, %{joins: joins, leaves: leaves}) do
+    leave_ids = Map.keys(leaves) |> MapSet.new()
+
+    remaining =
+      Enum.reject(presences, &MapSet.member?(leave_ids, &1.connection_id))
+
+    new =
+      Enum.map(joins, fn {connection_id, %{metas: [meta | _]}} ->
+        Map.put(meta, :connection_id, connection_id)
+      end)
+
+    remaining ++ new
+  end
 end

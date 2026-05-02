@@ -16,9 +16,17 @@ defmodule PyreWeb.ConnectedAppsListLive do
         []
       end
 
+    workflows = apply(Pyre.Config, :list_workflows, [])
+    capacity = Pyre.WorkflowAvailability.capacity_by_type(presences, workflows)
+
     {:ok,
      socket
-     |> assign(page_title: "Connected Apps — Pyre", presences: presences)
+     |> assign(
+       page_title: "Connected Apps — Pyre",
+       presences: presences,
+       workflows: workflows,
+       capacity_by_type: capacity
+     )
      |> assign(execution: nil, action_output: [])}
   end
 
@@ -61,8 +69,12 @@ defmodule PyreWeb.ConnectedAppsListLive do
 
   @impl true
   def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff}, socket) do
-    presences = update_presences(socket.assigns.presences, diff)
-    {:noreply, assign(socket, :presences, presences)}
+    presences = PyreWeb.Presence.apply_diff(socket.assigns.presences, diff)
+
+    capacity =
+      Pyre.WorkflowAvailability.capacity_by_type(presences, socket.assigns.workflows)
+
+    {:noreply, assign(socket, presences: presences, capacity_by_type: capacity)}
   end
 
   def handle_info({:action_output, payload}, socket) do
@@ -96,16 +108,4 @@ defmodule PyreWeb.ConnectedAppsListLive do
     Application.get_env(:pyre, :pubsub, Phoenix.PubSub)
   end
 
-  defp update_presences(presences, %{joins: joins, leaves: leaves}) do
-    leave_ids = Map.keys(leaves) |> MapSet.new()
-
-    remaining = Enum.reject(presences, &MapSet.member?(leave_ids, &1.connection_id))
-
-    new =
-      Enum.map(joins, fn {connection_id, %{metas: [meta | _]}} ->
-        Map.put(meta, :connection_id, connection_id)
-      end)
-
-    remaining ++ new
-  end
 end

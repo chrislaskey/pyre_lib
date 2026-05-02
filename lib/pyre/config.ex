@@ -197,6 +197,32 @@ defmodule Pyre.Config do
   """
   @callback sidebar_footer(assigns :: map()) :: Phoenix.LiveView.Rendered.t()
 
+  @doc """
+  Returns HEEx markup summarizing workflow capacity across all
+  workflow types. Intended for dashboard/overview pages.
+
+  The `assigns` map includes:
+    - `:capacity_by_type` — result of
+      `Pyre.WorkflowAvailability.capacity_by_type/2`
+    - `:workflows` — result of `Pyre.Config.list_workflows()`
+    - Any other assigns from the calling LiveView
+  """
+  @callback render_workflow_capacities(assigns :: map()) ::
+              Phoenix.LiveView.Rendered.t()
+
+  @doc """
+  Returns HEEx markup summarizing capacity for a single workflow
+  type. Intended for the run show page.
+
+  The `assigns` map includes:
+    - `:capacity_info` — the capacity_info map for this workflow
+      type from `Pyre.WorkflowAvailability.capacity_by_type/2`
+    - `:workflow_label` — display label (e.g., "Chat", "Feature")
+    - Any other assigns from the calling LiveView
+  """
+  @callback render_workflow_capacity(assigns :: map()) ::
+              Phoenix.LiveView.Rendered.t()
+
   # -- Workflow Callbacks --
 
   @doc """
@@ -612,6 +638,28 @@ defmodule Pyre.Config do
       def get_run(run_id), do: apply(Pyre.RunServer, :get_state, [run_id])
       @impl Pyre.Config
       def render_run(var!(assigns)), do: ~H""
+
+      @impl Pyre.Config
+      def render_workflow_capacities(var!(assigns)) do
+        ~H"""
+        <PyreWeb.Components.WorkflowCapacity.capacity_grid
+          capacity_by_type={@capacity_by_type}
+          workflows={@workflows}
+        />
+        """
+      end
+
+      @impl Pyre.Config
+      def render_workflow_capacity(var!(assigns)) do
+        ~H"""
+        <PyreWeb.Components.WorkflowCapacity.capacity_inline
+          :if={@capacity_info}
+          info={@capacity_info}
+          workflow_label={@workflow_label}
+        />
+        """
+      end
+
       @impl Pyre.Config
       def run_stop(run_id), do: apply(Pyre.RunServer, :stop_run, [run_id])
 
@@ -641,6 +689,8 @@ defmodule Pyre.Config do
                      list_runs: 0,
                      get_run: 1,
                      render_run: 1,
+                     render_workflow_capacities: 1,
+                     render_workflow_capacity: 1,
                      run_stop: 1
     end
   end
@@ -695,5 +745,25 @@ defmodule Pyre.Config do
   def list_runs, do: apply(Pyre.RunServer, :list_runs, [])
   def get_run(run_id), do: apply(Pyre.RunServer, :get_state, [run_id])
   def render_run(assigns), do: ~H""
+
+  def render_workflow_capacities(assigns) do
+    ~H"""
+    <PyreWeb.Components.WorkflowCapacity.capacity_grid
+      capacity_by_type={@capacity_by_type}
+      workflows={@workflows}
+    />
+    """
+  end
+
+  def render_workflow_capacity(assigns) do
+    ~H"""
+    <PyreWeb.Components.WorkflowCapacity.capacity_inline
+      :if={@capacity_info}
+      info={@capacity_info}
+      workflow_label={@workflow_label}
+    />
+    """
+  end
+
   def run_stop(run_id), do: apply(Pyre.RunServer, :stop_run, [run_id])
 end
