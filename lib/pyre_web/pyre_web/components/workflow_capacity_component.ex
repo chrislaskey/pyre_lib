@@ -78,9 +78,9 @@ defmodule PyreWeb.Components.WorkflowCapacity do
   Renders capacity text with a trailing status dot.
 
   Displays as:
-  - "2/3 capacity (2 workers) ●" — green dot, some available
-  - "0/3 capacity (3 workers) ●" — yellow dot, workers connected but busy
-  - "0/0 capacity ●" — red dot, no compatible workers
+  - "2 of 3 capacity ●" — green dot, some available
+  - "0 of 3 capacity ●" — yellow dot, workers connected but busy
+  - "0 of 0 capacity ●" — red dot, no compatible workers
   """
   attr :info, :map, required: true
 
@@ -94,9 +94,6 @@ defmodule PyreWeb.Components.WorkflowCapacity do
         @info.available_capacity == 0 and @worker_count == 0 && "text-base-content/40"
       ]}>
         {@info.available_capacity} of {@info.total_max_capacity} capacity
-        <span :if={@worker_count > 0}>
-          ({@worker_count} worker{if @worker_count != 1, do: "s"})
-        </span>
       </span>
       <span class={[
         "inline-block w-2 h-2 rounded-full",
@@ -113,11 +110,16 @@ defmodule PyreWeb.Components.WorkflowCapacity do
 
   Displays as:
   - "No compatible workers" — empty connections list
-  - "local (1/2), remote-1 (0/1)" — per-worker detail
+  - "1 worker: local (1/2)" — single worker
+  - "2 workers: local (1/2), remote-1 (0/1)" — multiple workers
   """
   attr :info, :map, required: true
 
   def connection_summary(assigns) do
+    worker_count = length(assigns.info.connections)
+    worker_label = pluralize(worker_count, "worker", "workers")
+    assigns = assign(assigns, worker_label: worker_label)
+
     ~H"""
     <div class={[
       "text-xs",
@@ -127,11 +129,14 @@ defmodule PyreWeb.Components.WorkflowCapacity do
       <%= if @info.connections == [] do %>
         No compatible workers
       <% else %>
-        {Enum.map_join(@info.connections, ", ", fn conn ->
+        {@worker_label}: {Enum.map_join(@info.connections, ", ", fn conn ->
           "#{conn.name} (#{conn.available_capacity}/#{conn.max_capacity})"
         end)}
       <% end %>
     </div>
     """
   end
+
+  defp pluralize(1, singular, _plural), do: "1 #{singular}"
+  defp pluralize(count, _singular, plural), do: "#{count} #{plural}"
 end
