@@ -330,7 +330,6 @@ defmodule Pyre.Flows.Dispatch do
         "messages" => json_messages,
         "role" => action_module.role(),
         "working_dir" => context.working_dir,
-        "allowed_paths" => Map.get(context, :allowed_paths, []),
         "allowed_commands" => Map.get(context, :allowed_commands) || [],
         "opts" => %{
           "streaming" => context.streaming,

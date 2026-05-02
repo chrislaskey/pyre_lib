@@ -67,7 +67,7 @@ defmodule Pyre.Tools do
     * `:allowed_commands` — List of command prefixes the `run_command` tool
       will accept. Defaults to `#{inspect(@default_allowed_commands)}`.
     * `:allowed_paths` — Absolute directory paths that file tools can read
-      and write. Required. Set via `PYRE_ALLOWED_PATHS` env var or pass
+      and write. Required. Set via `PYRE_CLIENT_ALLOWED_PATHS` env var or pass
       explicitly.
 
   ## Examples
@@ -123,7 +123,7 @@ defmodule Pyre.Tools do
     case Keyword.get(opts, :allowed_paths, []) do
       [] ->
         raise ArgumentError,
-              "No allowed paths configured. Set PYRE_ALLOWED_PATHS environment variable " <>
+              "No allowed paths configured. Set PYRE_CLIENT_ALLOWED_PATHS environment variable " <>
                 "or pass the :allowed_paths option to for_role/3."
 
       paths ->
