@@ -34,7 +34,7 @@
             <td>
               <.link
                 navigate={pyre_path(@socket, "/runs/#{run.id}")}
-                class="link link-primary font-mono text-sm"
+                class="link link-primary link-hover font-mono text-xs"
               >
                 {run.id}
               </.link>
@@ -45,7 +45,7 @@
               </span>
             </td>
             <td class="text-sm text-base-content/70">{workflow_label(run[:workflow])}</td>
-            <td class="text-sm font-mono text-base-content/70">{Map.get(run, :feature) || ""}</td>
+            <td class="text-xs font-mono text-base-content/70">{Map.get(run, :feature) || ""}</td>
             <td class="text-sm text-base-content/70">{phase_label(run.phase)}</td>
             <td class="max-w-md truncate">{truncate(run.feature_description, 80)}</td>
             <td class="text-sm text-base-content/70">
@@ -54,7 +54,9 @@
             <td class="text-sm text-base-content/70">
               <.timestamp dt={run[:completed_at]} />
             </td>
-            <td class="text-sm text-base-content/70">{format_duration(run.started_at, run[:completed_at])}</td>
+            <td class="text-sm text-base-content/70">
+              {format_duration(run.started_at, run[:completed_at])}
+            </td>
           </tr>
         </tbody>
       </table>
