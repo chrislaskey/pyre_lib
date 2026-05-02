@@ -93,7 +93,7 @@ defmodule PyreWeb.Components.WorkflowCapacity do
       <span class={[
         @info.available_capacity == 0 and @worker_count == 0 && "text-base-content/40"
       ]}>
-        {@info.available_capacity}/{@info.total_max_capacity} capacity
+        {@info.available_capacity} of {@info.total_max_capacity} capacity
         <span :if={@worker_count > 0}>
           ({@worker_count} worker{if @worker_count != 1, do: "s"})
         </span>
