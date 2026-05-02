@@ -16,8 +16,8 @@ defmodule PyreWeb.Components.WorkflowCapacity do
     * `capacity_by_type` - map from `Pyre.WorkflowAvailability.capacity_by_type/2`
     * `workflows` - list from `Pyre.Config.list_workflows/0`
   """
-  attr :capacity_by_type, :map, required: true
-  attr :workflows, :list, required: true
+  attr(:capacity_by_type, :map, required: true)
+  attr(:workflows, :list, required: true)
 
   def capacity_grid(assigns) do
     ~H"""
@@ -34,8 +34,8 @@ defmodule PyreWeb.Components.WorkflowCapacity do
   @doc """
   Renders a single workflow capacity card (for use in the grid).
   """
-  attr :workflow, :map, required: true
-  attr :info, :map, default: nil
+  attr(:workflow, :map, required: true)
+  attr(:info, :map, default: nil)
 
   def capacity_card(assigns) do
     info = assigns.info || %{available_capacity: 0, total_max_capacity: 0, connections: []}
@@ -61,12 +61,13 @@ defmodule PyreWeb.Components.WorkflowCapacity do
     * `info` - capacity_info map for this workflow type
     * `workflow_label` - display label (e.g., "Chat", "Feature")
   """
-  attr :info, :map, required: true
-  attr :workflow_label, :string, default: nil
+  attr(:info, :map, required: true)
+  attr(:workflow_label, :string, default: nil)
 
   def capacity_inline(assigns) do
     ~H"""
     <div class="mb-4 flex items-center gap-2 text-sm text-base-content/60">
+      <span :if={@workflow_label} class="text-base-content/60 font-medium">Workflow capacity:</span>
       <.capacity_badge info={@info} />
       <.connection_summary info={@info} />
     </div>
@@ -74,31 +75,32 @@ defmodule PyreWeb.Components.WorkflowCapacity do
   end
 
   @doc """
-  Renders a capacity badge showing available/total slots and
-  worker count.
+  Renders capacity text with a trailing status dot.
 
   Displays as:
-  - "2/3 capacity (2 workers)" — some available
-  - "0/3 capacity (3 workers)" — workers connected but busy
-  - "0/0 capacity" — no compatible workers
+  - "2 of 3 capacity ●" — green dot, some available
+  - "0 of 3 capacity ●" — yellow dot, workers connected but busy
+  - "0 of 0 capacity ●" — red dot, no compatible workers
   """
-  attr :info, :map, required: true
+  attr(:info, :map, required: true)
 
   def capacity_badge(assigns) do
     worker_count = length(assigns.info.connections)
     assigns = assign(assigns, :worker_count, worker_count)
 
     ~H"""
-    <span class={[
-      "badge badge-xs",
-      @info.available_capacity > 0 && "badge-success",
-      @info.available_capacity == 0 and @worker_count > 0 && "badge-warning",
-      @info.available_capacity == 0 and @worker_count == 0 && "badge-ghost text-base-content/40"
-    ]}>
-      {@info.available_capacity}/{@info.total_max_capacity} capacity
-      <span :if={@worker_count > 0}>
-        ({@worker_count} worker{if @worker_count != 1, do: "s"})
+    <span class="inline-flex items-center gap-1.5 text-xs">
+      <span class={[
+        (@info.available_capacity == 0 and @worker_count == 0) && "text-base-content/40"
+      ]}>
+        {@info.available_capacity} of {@info.total_max_capacity} capacity
       </span>
+      <span class={[
+        "inline-block w-2 h-2 rounded-full",
+        @info.available_capacity > 0 && "bg-success",
+        (@info.available_capacity == 0 and @worker_count > 0) && "bg-warning",
+        (@info.available_capacity == 0 and @worker_count == 0) && "bg-error"
+      ]} />
     </span>
     """
   end
@@ -108,21 +110,33 @@ defmodule PyreWeb.Components.WorkflowCapacity do
 
   Displays as:
   - "No compatible workers" — empty connections list
-  - "local (1/2), remote-1 (0/1)" — per-worker detail
+  - "1 worker: local (1/2)" — single worker
+  - "2 workers: local (1/2), remote-1 (0/1)" — multiple workers
   """
-  attr :info, :map, required: true
+  attr(:info, :map, required: true)
 
   def connection_summary(assigns) do
+    worker_count = length(assigns.info.connections)
+    worker_label = pluralize(worker_count, "worker", "workers")
+    assigns = assign(assigns, worker_label: worker_label)
+
     ~H"""
-    <div class="text-xs text-base-content/50">
+    <div class={[
+      "text-xs",
+      @info.connections == [] && "text-base-content/30",
+      @info.connections != [] && "text-base-content/60"
+    ]}>
       <%= if @info.connections == [] do %>
         No compatible workers
       <% else %>
-        {Enum.map_join(@info.connections, ", ", fn conn ->
+        {@worker_label}: {Enum.map_join(@info.connections, ", ", fn conn ->
           "#{conn.name} (#{conn.available_capacity}/#{conn.max_capacity})"
         end)}
       <% end %>
     </div>
     """
   end
+
+  defp pluralize(1, singular, _plural), do: "1 #{singular}"
+  defp pluralize(count, _singular, plural), do: "#{count} #{plural}"
 end

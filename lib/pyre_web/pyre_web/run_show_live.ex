@@ -22,7 +22,10 @@ defmodule PyreWeb.RunShowLive do
     case Pyre.Config.call(:get_run, [id]) do
       {:ok, run} ->
         workflows = apply(Pyre.Config, :list_workflows, [])
-        presences = if PyreWeb.Presence.running?(), do: PyreWeb.Presence.list_connections(), else: []
+
+        presences =
+          if PyreWeb.Presence.running?(), do: PyreWeb.Presence.list_connections(), else: []
+
         all_capacity = Pyre.WorkflowAvailability.capacity_by_type(presences, workflows)
 
         workflow_type = Map.get(run, :workflow)

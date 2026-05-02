@@ -35,7 +35,9 @@
     {@feature_description}
   </div>
 
-  {Pyre.Config.call(:render_workflow_capacity, [assigns])}
+  <div :if={@status not in [:running, :complete, :stopped]}>
+    {Pyre.Config.call(:render_workflow_capacity, [assigns])}
+  </div>
 
   {Pyre.Config.call(:render_run, [assigns])}
 

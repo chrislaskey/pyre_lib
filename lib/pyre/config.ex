@@ -98,7 +98,11 @@ defmodule Pyre.Config do
   @callback authorize_socket_connect(params :: map(), connect_info :: map()) ::
               :ok | {:error, term()}
 
-  @callback authorize_channel_join(topic :: String.t(), params :: map(), socket :: Phoenix.Socket.t()) ::
+  @callback authorize_channel_join(
+              topic :: String.t(),
+              params :: map(),
+              socket :: Phoenix.Socket.t()
+            ) ::
               :ok | {:error, term()}
 
   @callback authorize_run_create(run_params :: map(), socket :: Phoenix.LiveView.Socket.t()) ::
@@ -262,6 +266,7 @@ defmodule Pyre.Config do
 
     * `:id` - the run ID string (used for links)
     * `:status` - atom (e.g., `:queued`, `:running`, `:complete`, `:error`)
+    * `:workflow` - atom (e.g., `:chat`, `:feature`, `:prototype`)
     * `:feature` - feature name string or nil
     * `:phase` - current phase atom or nil
     * `:feature_description` - the original description string
@@ -594,8 +599,12 @@ defmodule Pyre.Config do
       @impl Pyre.Config
       def websocket_service_tokens do
         case Application.get_env(:pyre, :websocket_service_tokens) do
-          nil -> []
-          tokens when is_list(tokens) -> tokens
+          nil ->
+            []
+
+          tokens when is_list(tokens) ->
+            tokens
+
           csv when is_binary(csv) ->
             csv |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
         end
@@ -717,8 +726,12 @@ defmodule Pyre.Config do
 
   def websocket_service_tokens do
     case Application.get_env(:pyre, :websocket_service_tokens) do
-      nil -> []
-      tokens when is_list(tokens) -> tokens
+      nil ->
+        []
+
+      tokens when is_list(tokens) ->
+        tokens
+
       csv when is_binary(csv) ->
         csv |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
     end

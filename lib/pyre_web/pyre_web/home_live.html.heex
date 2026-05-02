@@ -15,17 +15,17 @@
     <.link navigate={pyre_path(@socket, "/runs")} class="btn btn-outline">View Runs</.link>
   </div>
 
-  <h2 class="text-lg font-semibold mt-12 mb-3">Connected Apps</h2>
+  <h2 class="text-lg font-semibold mt-12 mb-3">Workflow Capacity</h2>
+
+  {Pyre.Config.call(:render_workflow_capacities, [assigns])}
+
+  <h2 class="text-lg font-semibold mt-8 mb-3">Connected Apps</h2>
 
   <.live_component
     module={PyreWeb.ConnectionPresenceComponent}
     id="connection-presence"
     presences={@presences}
   />
-
-  <h2 class="text-lg font-semibold mt-8 mb-3">Workflow Capacity</h2>
-
-  {Pyre.Config.call(:render_workflow_capacities, [assigns])}
 
   <div :if={@execution} id="test-connection-result" class="mt-8">
     <div class="flex items-center gap-3 mb-3">

@@ -107,5 +107,4 @@ defmodule PyreWeb.ConnectedAppsListLive do
   defp pubsub do
     Application.get_env(:pyre, :pubsub, Phoenix.PubSub)
   end
-
 end
