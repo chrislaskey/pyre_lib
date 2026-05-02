@@ -75,12 +75,12 @@ defmodule PyreWeb.Components.WorkflowCapacity do
   end
 
   @doc """
-  Renders a status dot with capacity text.
+  Renders capacity text with a trailing status dot.
 
   Displays as:
-  - "● 2/3 capacity (2 workers)" — green dot, some available
-  - "● 0/3 capacity (3 workers)" — yellow dot, workers connected but busy
-  - "● 0/0 capacity" — grey dot, no compatible workers
+  - "2/3 capacity (2 workers) ●" — green dot, some available
+  - "0/3 capacity (3 workers) ●" — yellow dot, workers connected but busy
+  - "0/0 capacity ●" — red dot, no compatible workers
   """
   attr :info, :map, required: true
 
@@ -91,12 +91,6 @@ defmodule PyreWeb.Components.WorkflowCapacity do
     ~H"""
     <span class="inline-flex items-center gap-1.5 text-xs">
       <span class={[
-        "inline-block w-2 h-2 rounded-full",
-        @info.available_capacity > 0 && "bg-success",
-        @info.available_capacity == 0 and @worker_count > 0 && "bg-warning",
-        @info.available_capacity == 0 and @worker_count == 0 && "bg-base-content/20"
-      ]} />
-      <span class={[
         @info.available_capacity == 0 and @worker_count == 0 && "text-base-content/40"
       ]}>
         {@info.available_capacity}/{@info.total_max_capacity} capacity
@@ -104,6 +98,12 @@ defmodule PyreWeb.Components.WorkflowCapacity do
           ({@worker_count} worker{if @worker_count != 1, do: "s"})
         </span>
       </span>
+      <span class={[
+        "inline-block w-2 h-2 rounded-full",
+        @info.available_capacity > 0 && "bg-success",
+        @info.available_capacity == 0 and @worker_count > 0 && "bg-warning",
+        @info.available_capacity == 0 and @worker_count == 0 && "bg-error"
+      ]} />
     </span>
     """
   end

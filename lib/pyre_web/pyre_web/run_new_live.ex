@@ -225,16 +225,16 @@ defmodule PyreWeb.RunNewLive do
     >
       <div class="flex items-center justify-between gap-2">
         <span class="text-sm font-medium">{@label}</span>
+        <PyreWeb.Components.WorkflowCapacity.capacity_badge info={@capacity_info} />
+      </div>
+      <div class="text-xs text-base-content/50 mt-0.5">{@description}</div>
+      <div class="mt-1.5">
         <span class={[
           "badge badge-xs uppercase",
           if(@badge == "Interactive", do: "badge-soft badge-primary", else: "badge-ghost")
         ]}>
           {@badge}
         </span>
-      </div>
-      <div class="text-xs text-base-content/50 mt-0.5">{@description}</div>
-      <div class="mt-1.5">
-        <PyreWeb.Components.WorkflowCapacity.capacity_badge info={@capacity_info} />
       </div>
     </div>
     """
