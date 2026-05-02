@@ -199,5 +199,4 @@ defmodule Pyre.Flows.CodeReview do
       raise "Invalid phase transition: #{current} -> #{next_phase}"
     end
   end
-
 end

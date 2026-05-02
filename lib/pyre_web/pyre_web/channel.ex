@@ -63,13 +63,11 @@ defmodule PyreWeb.Channel do
   end
 
   defp validate_service_token(token) do
-    cond do
-      is_binary(token) and Pyre.Config.call(:websocket_service_token_valid?, [token]) ->
-        :ok
-
-      true ->
-        Logger.warning("[PyreWeb.Channel] Invalid or missing service token on join")
-        {:error, "unauthorized"}
+    if is_binary(token) and Pyre.Config.call(:websocket_service_token_valid?, [token]) do
+      :ok
+    else
+      Logger.warning("[PyreWeb.Channel] Invalid or missing service token on join")
+      {:error, "unauthorized"}
     end
   end
 

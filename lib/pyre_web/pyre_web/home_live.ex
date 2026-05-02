@@ -114,5 +114,4 @@ defmodule PyreWeb.HomeLive do
   defp pubsub do
     Application.get_env(:pyre, :pubsub, Phoenix.PubSub)
   end
-
 end

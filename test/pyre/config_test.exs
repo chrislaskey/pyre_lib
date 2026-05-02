@@ -177,10 +177,13 @@ defmodule Pyre.ConfigTest do
   describe "websocket_service_tokens/0" do
     setup do
       original = Application.get_env(:pyre, :websocket_service_tokens)
+
       on_exit(fn ->
-        if original, do: Application.put_env(:pyre, :websocket_service_tokens, original),
-                     else: Application.delete_env(:pyre, :websocket_service_tokens)
+        if original,
+          do: Application.put_env(:pyre, :websocket_service_tokens, original),
+          else: Application.delete_env(:pyre, :websocket_service_tokens)
       end)
+
       :ok
     end
 
@@ -208,10 +211,13 @@ defmodule Pyre.ConfigTest do
   describe "websocket_service_token_valid?/1" do
     setup do
       original = Application.get_env(:pyre, :websocket_service_tokens)
+
       on_exit(fn ->
-        if original, do: Application.put_env(:pyre, :websocket_service_tokens, original),
-                     else: Application.delete_env(:pyre, :websocket_service_tokens)
+        if original,
+          do: Application.put_env(:pyre, :websocket_service_tokens, original),
+          else: Application.delete_env(:pyre, :websocket_service_tokens)
       end)
+
       Application.put_env(:pyre, :websocket_service_tokens, ["valid-token", "another-token"])
       :ok
     end

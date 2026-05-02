@@ -29,12 +29,10 @@ defmodule PyreWeb.ConnectionPresenceComponent do
                 {Enum.join(meta(presence, :backends), ", ")}
               </p>
 
-              <p
-                :if={
-                  meta(presence, :enabled_workflows) != nil and
-                    meta(presence, :enabled_workflows) != []
-                }
-              >
+              <p :if={
+                meta(presence, :enabled_workflows) != nil and
+                  meta(presence, :enabled_workflows) != []
+              }>
                 <span class="font-medium text-base-content/70">Workflows:</span>
                 {Enum.join(meta(presence, :enabled_workflows), ", ")}
               </p>
@@ -72,7 +70,7 @@ defmodule PyreWeb.ConnectionPresenceComponent do
           class={[
             "h-full rounded-full",
             @percentage > 50 && "bg-success",
-            @percentage > 0 and @percentage <= 50 && "bg-warning",
+            (@percentage > 0 and @percentage <= 50) && "bg-warning",
             @percentage == 0 && "bg-error"
           ]}
           style={"width: #{@percentage}%"}

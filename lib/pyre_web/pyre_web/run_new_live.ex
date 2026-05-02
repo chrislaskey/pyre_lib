@@ -144,10 +144,7 @@ defmodule PyreWeb.RunNewLive do
   end
 
   @impl true
-  def handle_info(
-        %Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff},
-        socket
-      ) do
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff}, socket) do
     presences = PyreWeb.Presence.apply_diff(socket.assigns.presences, diff)
 
     capacity =

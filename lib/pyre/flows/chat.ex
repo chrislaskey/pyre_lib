@@ -193,5 +193,4 @@ defmodule Pyre.Flows.Chat do
       raise "Invalid phase transition: #{current} -> #{next_phase}"
     end
   end
-
 end
