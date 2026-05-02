@@ -4,10 +4,22 @@ defmodule PyreWeb.RunNewLive do
   """
   use PyreWeb.Web, :live_view
 
+  @presence_topic "pyre:connections"
+
   @impl true
   def mount(_params, _session, socket) do
     workflows = apply(Pyre.Config, :list_workflows, [])
     default_entry = Enum.find(workflows, fn w -> w.name == :chat end) || hd(workflows)
+
+    presences =
+      if connected?(socket) and PyreWeb.Presence.running?() do
+        Phoenix.PubSub.subscribe(pubsub(), @presence_topic)
+        PyreWeb.Presence.list_connections()
+      else
+        []
+      end
+
+    capacity = Pyre.WorkflowAvailability.capacity_by_type(presences, workflows)
 
     socket =
       socket
@@ -20,7 +32,9 @@ defmodule PyreWeb.RunNewLive do
         workflow: default_entry.name,
         toggleable_stages: default_entry.stages,
         skipped_stages: MapSet.new(),
-        interactive_stages: default_interactive_for(default_entry)
+        interactive_stages: default_interactive_for(default_entry),
+        presences: presences,
+        capacity_by_type: capacity
       )
       |> allow_upload(:attachments,
         accept: ~w(.txt .md .csv .json .html .css .js .png .jpg .jpeg .gif .webp),
@@ -129,6 +143,19 @@ defmodule PyreWeb.RunNewLive do
     end
   end
 
+  @impl true
+  def handle_info(
+        %Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff},
+        socket
+      ) do
+    presences = PyreWeb.Presence.apply_diff(socket.assigns.presences, diff)
+
+    capacity =
+      Pyre.WorkflowAvailability.capacity_by_type(presences, socket.assigns.workflows)
+
+    {:noreply, assign(socket, presences: presences, capacity_by_type: capacity)}
+  end
+
   defp start_run(socket, desc, feature) do
     attachments =
       consume_uploaded_entries(socket, :attachments, fn %{path: path}, entry ->
@@ -173,7 +200,17 @@ defmodule PyreWeb.RunNewLive do
     end
   end
 
+  defp pubsub do
+    Application.get_env(:pyre, :pubsub, Phoenix.PubSub)
+  end
+
   defp workflow_card(assigns) do
+    info =
+      assigns[:capacity_info] ||
+        %{available_capacity: 0, total_max_capacity: 0, connections: []}
+
+    assigns = assign(assigns, :capacity_info, info)
+
     ~H"""
     <div
       phx-click="select_workflow"
@@ -196,6 +233,9 @@ defmodule PyreWeb.RunNewLive do
         </span>
       </div>
       <div class="text-xs text-base-content/50 mt-0.5">{@description}</div>
+      <div class="mt-1.5">
+        <PyreWeb.Components.WorkflowCapacity.capacity_badge info={@capacity_info} />
+      </div>
     </div>
     """
   end

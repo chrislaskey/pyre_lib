@@ -35,6 +35,8 @@
     {@feature_description}
   </div>
 
+  {Pyre.Config.call(:render_workflow_capacity, [assigns])}
+
   {Pyre.Config.call(:render_run, [assigns])}
 
   <.workflow_panel

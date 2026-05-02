@@ -749,13 +749,18 @@ defmodule Pyre.RunServer do
     end
   end
 
-  defp select_worker_from_presence(_opts) do
+  defp select_worker_from_presence(opts) do
+    workflow_type = Keyword.get(opts, :workflow) |> to_string()
+
     PyreWeb.Presence.list_connections()
     |> Enum.filter(fn meta ->
       status = meta["status"] || meta[:status] || "active"
       capacity = meta["available_capacity"] || meta[:available_capacity] || 0
+      enabled = meta["enabled_workflows"] || meta[:enabled_workflows] || []
 
-      status == "active" and capacity > 0
+      status == "active" and
+        capacity > 0 and
+        (enabled == [] or workflow_type in enabled)
     end)
     |> Enum.max_by(
       fn meta -> meta["available_capacity"] || meta[:available_capacity] || 0 end,
