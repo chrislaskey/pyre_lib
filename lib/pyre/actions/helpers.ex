@@ -120,6 +120,11 @@ defmodule Pyre.Actions.Helpers do
 
   Extracts `:allowed_commands` and `:allowed_paths` when present,
   returning a keyword list suitable for passing to `Pyre.Tools.for_role/3`.
+
+  Note: In the dispatch architecture, flows no longer carry `allowed_paths`
+  in their context — the client determines paths from its own config.
+  This extraction is retained for the direct `run/2` action path used
+  in tests and standalone execution.
   """
   def tool_opts(context) do
     opts = []

@@ -23,7 +23,6 @@ defmodule Pyre.Flows.Feature do
     * `:streaming` -- Stream LLM output token-by-token. Default `true`.
     * `:verbose` -- Print diagnostic information. Default `false`.
     * `:project_dir` -- Working directory for the agents. Default `"."`.
-    * `:allowed_paths` -- Additional directories agents can read/write.
     * `:output_fn` -- Function called with each streaming token. Default `&IO.write/1`.
     * `:log_fn` -- Function called with status/progress messages. Default `&IO.puts/1`.
     * `:github` -- GitHub repo config map with `:owner`, `:repo`, `:token`, and
@@ -86,16 +85,11 @@ defmodule Pyre.Flows.Feature do
     features_dir = Path.expand("priv/pyre/features", File.cwd!())
     feature = Keyword.get(opts, :feature)
 
-    allowed_paths = Keyword.get(opts, :allowed_paths) || allowed_paths_from_config()
-
     attachments = Keyword.get(opts, :attachments, [])
 
     with {:ok, run_dir, feature_dir} <- Artifact.create_run_dir(features_dir, feature),
          :ok <- Artifact.write(run_dir, "00_feature", feature_description),
          :ok <- Artifact.store_attachments(run_dir, attachments) do
-      # Give agents access to the feature dir so they can browse prior runs
-      allowed_paths = [feature_dir | allowed_paths]
-
       context = %{
         llm: Keyword.get(opts, :llm),
         streaming: streaming?,
@@ -105,7 +99,6 @@ defmodule Pyre.Flows.Feature do
         verbose: verbose?,
         dry_run: Keyword.get(opts, :dry_run, false),
         working_dir: working_dir,
-        allowed_paths: allowed_paths,
         add_dirs: [feature_dir],
         allowed_commands: Keyword.get(opts, :allowed_commands),
         skip_check_fn: Keyword.get(opts, :skip_check_fn),
@@ -268,13 +261,6 @@ defmodule Pyre.Flows.Feature do
       %{state | phase: next_phase}
     else
       raise "Invalid phase transition: #{current} -> #{next_phase}"
-    end
-  end
-
-  defp allowed_paths_from_config do
-    case Application.get_env(:pyre, :allowed_paths) do
-      nil -> []
-      paths when is_list(paths) -> paths
     end
   end
 

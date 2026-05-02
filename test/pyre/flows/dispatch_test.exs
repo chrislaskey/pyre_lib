@@ -62,7 +62,6 @@ defmodule Pyre.Flows.DispatchTest do
         verbose: false,
         dry_run: false,
         working_dir: ".",
-        allowed_paths: [],
         add_dirs: [],
         allowed_commands: nil,
         skip_check_fn: nil,

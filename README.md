@@ -62,42 +62,11 @@ supervision tree.
 
 #### Allowed Paths
 
-By default, agent file tools (read, write, list directory) are sandboxed to
-the working directory. If you need access to sibling apps
-or shared libraries, you can allow additional directories.
-
-**Environment variable** (comma-separated):
-
-```bash
-export PYRE_ALLOWED_PATHS="/path/to/apps/other,/path/to/libs/shared"
-```
-
-**Application config:**
-
-```elixir
-# config/runtime.exs
-if paths = System.get_env("PYRE_ALLOWED_PATHS") do
-  config :pyre,
-    allowed_paths:
-      paths
-      |> String.split(",", trim: true)
-      |> Enum.map(&String.trim/1)
-      |> Enum.map(&Path.expand/1)
-end
-```
-
-**Flow option** (programmatic):
-
-```elixir
-Pyre.Flows.FeatureBuild.run("Build a feature",
-  project_dir: "apps/tools",
-  allowed_paths: ["/path/to/apps/other"]
-)
-```
-
-Relative paths are resolved against the working directory (`--project-dir`),
-so `../other` with `--project-dir apps/tools` resolves to `apps/other`. The
-working directory itself is always included automatically.
+Agent file tools (read, write, list directory) are sandboxed to explicitly
+configured paths. Allowed paths are configured entirely on the **client** —
+the server does not send or control filesystem access. See the
+[Pyre Client README](https://github.com/chrislaskey/pyre_client?tab=readme-ov-file#allowed-paths)
+for `PYRE_CLIENT_ALLOWED_PATHS` setup.
 
 #### Lifecycle hooks
 
@@ -248,7 +217,6 @@ working in real time.
 | `--no-stream` | | Disable streaming (wait for complete responses) |
 | `--project-dir` | `-p` | Working directory for agents (default: `.`) |
 | `--feature` | `-n` | Feature name to group related runs |
-| `--allowed-paths` | | Comma-separated additional directories agents can access |
 
 #### Artifacts
 
