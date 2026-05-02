@@ -75,13 +75,12 @@ defmodule PyreWeb.Components.WorkflowCapacity do
   end
 
   @doc """
-  Renders a capacity badge showing available/total slots and
-  worker count.
+  Renders a status dot with capacity text.
 
   Displays as:
-  - "2/3 capacity (2 workers)" — some available
-  - "0/3 capacity (3 workers)" — workers connected but busy
-  - "0/0 capacity" — no compatible workers
+  - "● 2/3 capacity (2 workers)" — green dot, some available
+  - "● 0/3 capacity (3 workers)" — yellow dot, workers connected but busy
+  - "● 0/0 capacity" — grey dot, no compatible workers
   """
   attr :info, :map, required: true
 
@@ -90,15 +89,20 @@ defmodule PyreWeb.Components.WorkflowCapacity do
     assigns = assign(assigns, :worker_count, worker_count)
 
     ~H"""
-    <span class={[
-      "badge badge-xs",
-      @info.available_capacity > 0 && "badge-success",
-      @info.available_capacity == 0 and @worker_count > 0 && "badge-warning",
-      @info.available_capacity == 0 and @worker_count == 0 && "badge-ghost text-base-content/40"
-    ]}>
-      {@info.available_capacity}/{@info.total_max_capacity} capacity
-      <span :if={@worker_count > 0}>
-        ({@worker_count} worker{if @worker_count != 1, do: "s"})
+    <span class="inline-flex items-center gap-1.5 text-xs">
+      <span class={[
+        "inline-block w-2 h-2 rounded-full",
+        @info.available_capacity > 0 && "bg-success",
+        @info.available_capacity == 0 and @worker_count > 0 && "bg-warning",
+        @info.available_capacity == 0 and @worker_count == 0 && "bg-base-content/20"
+      ]} />
+      <span class={[
+        @info.available_capacity == 0 and @worker_count == 0 && "text-base-content/40"
+      ]}>
+        {@info.available_capacity}/{@info.total_max_capacity} capacity
+        <span :if={@worker_count > 0}>
+          ({@worker_count} worker{if @worker_count != 1, do: "s"})
+        </span>
       </span>
     </span>
     """
