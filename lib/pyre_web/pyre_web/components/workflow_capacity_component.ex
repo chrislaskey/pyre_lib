@@ -67,6 +67,7 @@ defmodule PyreWeb.Components.WorkflowCapacity do
   def capacity_inline(assigns) do
     ~H"""
     <div class="mb-4 flex items-center gap-2 text-sm text-base-content/60">
+      <span :if={@workflow_label} class="text-base-content/60 font-medium">Workflow capacity:</span>
       <.capacity_badge info={@info} />
       <.connection_summary info={@info} />
     </div>
@@ -114,7 +115,11 @@ defmodule PyreWeb.Components.WorkflowCapacity do
 
   def connection_summary(assigns) do
     ~H"""
-    <div class="text-xs text-base-content/50">
+    <div class={[
+      "text-xs",
+      @info.connections == [] && "text-base-content/30",
+      @info.connections != [] && "text-base-content/60"
+    ]}>
       <%= if @info.connections == [] do %>
         No compatible workers
       <% else %>
