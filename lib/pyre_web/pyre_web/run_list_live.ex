@@ -138,9 +138,9 @@ defmodule PyreWeb.RunListLive do
     seconds = DateTime.diff(DateTime.utc_now(), started, :second)
 
     cond do
-      seconds < 60 -> "#{seconds}s..."
-      seconds < 3600 -> "#{div(seconds, 60)}m #{rem(seconds, 60)}s..."
-      true -> "#{div(seconds, 3600)}h #{div(rem(seconds, 3600), 60)}m..."
+      seconds < 60 -> "#{seconds}s"
+      seconds < 3600 -> "#{div(seconds, 60)}m #{rem(seconds, 60)}s"
+      true -> "#{div(seconds, 3600)}h #{div(rem(seconds, 3600), 60)}m"
     end
   end
 
