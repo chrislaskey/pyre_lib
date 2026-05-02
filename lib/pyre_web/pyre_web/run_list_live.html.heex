@@ -25,6 +25,8 @@
             <th>Phase</th>
             <th>Description</th>
             <th>Started</th>
+            <th>Completed</th>
+            <th>Duration</th>
           </tr>
         </thead>
         <tbody>
@@ -46,7 +48,13 @@
             <td class="text-sm font-mono text-base-content/70">{Map.get(run, :feature) || ""}</td>
             <td class="text-sm text-base-content/70">{phase_label(run.phase)}</td>
             <td class="max-w-md truncate">{truncate(run.feature_description, 80)}</td>
-            <td class="text-sm text-base-content/70">{format_time(run.started_at)}</td>
+            <td class="text-sm text-base-content/70">
+              <.timestamp dt={run.started_at} />
+            </td>
+            <td class="text-sm text-base-content/70">
+              <.timestamp dt={run[:completed_at]} />
+            </td>
+            <td class="text-sm text-base-content/70">{format_duration(run.started_at, run[:completed_at])}</td>
           </tr>
         </tbody>
       </table>

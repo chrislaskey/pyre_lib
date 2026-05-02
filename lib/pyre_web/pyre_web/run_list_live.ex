@@ -96,9 +96,53 @@ defmodule PyreWeb.RunListLive do
   defp truncate(text, max) when byte_size(text) <= max, do: text
   defp truncate(text, max), do: String.slice(text, 0, max) <> "..."
 
-  defp format_time(%DateTime{} = dt) do
+  defp timestamp(%{dt: nil} = assigns), do: ~H""
+
+  defp timestamp(assigns) do
+    ~H"""
+    <div>{relative_time(@dt)}</div>
+    <div class="text-xs text-base-content/50">{format_utc(@dt)}</div>
+    """
+  end
+
+  defp relative_time(%DateTime{} = dt) do
+    now = DateTime.utc_now()
+    diff = DateTime.diff(now, dt, :second)
+
+    cond do
+      diff < 0 -> "just now"
+      diff < 60 -> "#{diff}s ago"
+      diff < 3600 -> "#{div(diff, 60)}m ago"
+      diff < 86400 -> "#{div(diff, 3600)}h ago"
+      diff < 604_800 -> "#{div(diff, 86400)}d ago"
+      diff < 2_592_000 -> "#{div(diff, 604_800)}w ago"
+      true -> format_utc(dt)
+    end
+  end
+
+  defp format_utc(%DateTime{} = dt) do
     Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
   end
 
-  defp format_time(_), do: ""
+  defp format_duration(%DateTime{} = started, %DateTime{} = completed) do
+    seconds = DateTime.diff(completed, started, :second)
+
+    cond do
+      seconds < 60 -> "#{seconds}s"
+      seconds < 3600 -> "#{div(seconds, 60)}m #{rem(seconds, 60)}s"
+      true -> "#{div(seconds, 3600)}h #{div(rem(seconds, 3600), 60)}m"
+    end
+  end
+
+  defp format_duration(%DateTime{} = started, nil) do
+    seconds = DateTime.diff(DateTime.utc_now(), started, :second)
+
+    cond do
+      seconds < 60 -> "#{seconds}s..."
+      seconds < 3600 -> "#{div(seconds, 60)}m #{rem(seconds, 60)}s..."
+      true -> "#{div(seconds, 3600)}h #{div(rem(seconds, 3600), 60)}m..."
+    end
+  end
+
+  defp format_duration(_, _), do: ""
 end
