@@ -72,6 +72,16 @@ defmodule PyreWeb.RunListLive do
   defp status_label(:error), do: "Error"
   defp status_label(_), do: "Unknown"
 
+  defp workflow_label(workflow) when is_atom(workflow) do
+    workflow
+    |> Atom.to_string()
+    |> String.replace("_", " ")
+    |> String.split()
+    |> Enum.map_join(" ", &String.capitalize/1)
+  end
+
+  defp workflow_label(_), do: ""
+
   defp phase_label(:planning), do: "Planning"
   defp phase_label(:designing), do: "Design"
   defp phase_label(:implementing), do: "Implementation"
